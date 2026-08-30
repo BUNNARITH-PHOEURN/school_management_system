@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Page } from './Sidebar'
+import type { SessionUser } from '../api/auth'
 
 const breadcrumbs: Record<Page, string[]> = {
   dashboard: ['Dashboard'],
@@ -18,15 +19,18 @@ const breadcrumbs: Record<Page, string[]> = {
 }
 
 interface TopBarProps {
+  user: SessionUser
   currentPage: Page
   onToggleSidebar: () => void
   onLogout: () => void
   onNavigate: (page: Page) => void
 }
 
-export default function TopBar({ currentPage, onToggleSidebar, onLogout, onNavigate }: TopBarProps) {
+export default function TopBar({ user, currentPage, onToggleSidebar, onLogout, onNavigate }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const crumbs = breadcrumbs[currentPage] ?? []
+  const initials = user.name.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+  const firstName = user.name.split(' ')[0]
 
   return (
     <header className="h-14 bg-white border-b flex items-center px-4 gap-3 flex-shrink-0" style={{ borderColor: '#e2e7f0', zIndex: 10 }}>
@@ -83,9 +87,9 @@ export default function TopBar({ currentPage, onToggleSidebar, onLogout, onNavig
             className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-100 transition-colors"
           >
             <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ backgroundColor: '#3b5bdb', color: 'white', fontFamily: 'Outfit, sans-serif' }}>
-              AC
+              {initials}
             </div>
-            <span className="hidden sm:block text-sm font-medium" style={{ color: '#1a1f36', fontFamily: 'Outfit, sans-serif' }}>Alexandra</span>
+            <span className="hidden sm:block text-sm font-medium" style={{ color: '#1a1f36', fontFamily: 'Outfit, sans-serif' }}>{firstName}</span>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="6 9 12 15 18 9" />
             </svg>
@@ -97,8 +101,8 @@ export default function TopBar({ currentPage, onToggleSidebar, onLogout, onNavig
               <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl shadow-xl border z-20 overflow-hidden" style={{ borderColor: '#e2e7f0', boxShadow: '0 8px 30px rgba(0,0,0,0.12)' }}>
                 <div className="px-4 py-3 border-b" style={{ borderColor: '#f0f3fa' }}>
                   <div className="text-xs" style={{ color: '#9ca3af' }}>Signed in as</div>
-                  <div className="text-sm font-semibold mt-0.5" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>Alexandra Chen</div>
-                  <div className="text-xs" style={{ color: '#9ca3af' }}>admin@school.edu</div>
+                  <div className="text-sm font-semibold mt-0.5" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{user.name}</div>
+                  <div className="text-xs" style={{ color: '#9ca3af' }}>{user.email}</div>
                 </div>
                 <div className="py-1">
                   <button onClick={() => { setMenuOpen(false); onNavigate('profile') }} className="w-full text-left px-4 py-2 text-sm transition-colors hover:bg-gray-50" style={{ color: '#374151' }}>

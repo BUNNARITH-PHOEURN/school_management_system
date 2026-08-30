@@ -1,5 +1,7 @@
-import { useState } from 'react'
-import { attendance as initial, students, classes, enrollments, type AttendanceStatus } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import { listClasses, type Class } from '../api/classes'
+import { listEnrollments, type EnrollmentWithNames } from '../api/enrollments'
+import { listAttendance, saveAttendance, type AttendanceWithNames, type AttendanceStatus } from '../api/attendance'
 import { useToast } from '../context/ToastContext'
 
 const statusConfig: Record<AttendanceStatus, { label: string; color: string; activeBg: string; activeBorder: string }> = {
@@ -9,55 +11,119 @@ const statusConfig: Record<AttendanceStatus, { label: string; color: string; act
   permission: { label: 'Permission', color: '#1e40af', activeBg: '#dbeafe', activeBorder: '#93c5fd' },
 }
 
+function initials(name: string) {
+  return name.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+}
+
+function localToday() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function Attendance() {
   const { toast } = useToast()
-  const [records, setRecords] = useState(initial)
+  const [classes, setClasses] = useState<Class[]>([])
+  const [enrollments, setEnrollments] = useState<EnrollmentWithNames[]>([])
+  const [records, setRecords] = useState<AttendanceWithNames[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedClass, setSelectedClass] = useState(2)
-  const [selectedDate, setSelectedDate] = useState('2026-08-16')
+  const [selectedDate, setSelectedDate] = useState(localToday())
   const [saved, setSaved] = useState(false)
 
-  const activeClasses = classes.filter(c => c.status === 'active')
-  const enrolledStudentIds = enrollments.filter(e => e.classId === selectedClass && e.status === 'enrolled').map(e => e.studentId)
-  const todayRecords = records.filter(r => r.classId === selectedClass && r.date === selectedDate)
+  useEffect(() => {
+    (async () => {
+      try {
+        const [classRows, enrollmentRows] = await Promise.all([listClasses(), listEnrollments()])
+        setClasses(classRows)
+        setEnrollments(enrollmentRows)
+      } catch (err) {
+        toast('error', err instanceof Error ? err.message : 'Failed to load data.')
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [])
 
-  const getRecord = (studentId: number) => todayRecords.find(r => r.studentId === studentId)
-  const getStatus = (studentId: number): AttendanceStatus | null => getRecord(studentId)?.status ?? null
-  const getRemarks = (studentId: number): string => getRecord(studentId)?.remarks ?? ''
+  const loadRecords = async (classId: number, date: string) => {
+    try {
+      const rows = await listAttendance(classId, date)
+      setRecords(rows)
+    } catch (err) {
+      toast('error', err instanceof Error ? err.message : 'Failed to load attendance.')
+    }
+  }
+
+  useEffect(() => {
+    if (!loading) loadRecords(selectedClass, selectedDate)
+  }, [selectedClass, selectedDate, loading])
+
+  const activeClasses = classes.filter(c => c.status === 'active')
+  const roster = enrollments.filter(e => e.classId === selectedClass && e.status === 'enrolled')
+
+  const newRecord = (studentId: number, status: AttendanceStatus, remarks = ''): AttendanceWithNames => {
+    const e = roster.find(r => r.studentId === studentId)
+    return {
+      id: Date.now() + studentId,
+      studentId,
+      classId: selectedClass,
+      date: selectedDate,
+      status,
+      remarks,
+      studentName: e?.studentName ?? '',
+      studentCode: e?.studentCode ?? '',
+      className: e?.className ?? '',
+    }
+  }
 
   const setStatus = (studentId: number, status: AttendanceStatus) => {
     setSaved(false)
     setRecords(prev => {
-      const existing = prev.find(r => r.studentId === studentId && r.classId === selectedClass && r.date === selectedDate)
-      if (existing) return prev.map(r => (r.studentId === studentId && r.classId === selectedClass && r.date === selectedDate) ? { ...r, status } : r)
-      return [...prev, { id: Math.max(...prev.map(r => r.id)) + 1, studentId, classId: selectedClass, date: selectedDate, status, remarks: '' }]
+      const existing = prev.find(r => r.studentId === studentId)
+      if (existing) return prev.map(r => r.studentId === studentId ? { ...r, status } : r)
+      return [...prev, newRecord(studentId, status)]
     })
   }
+
   const setRemarks = (studentId: number, remarks: string) => {
-    setRecords(prev => prev.map(r => (r.studentId === studentId && r.classId === selectedClass && r.date === selectedDate) ? { ...r, remarks } : r))
+    setRecords(prev => prev.map(r => r.studentId === studentId ? { ...r, remarks } : r))
   }
 
   const markAll = (status: AttendanceStatus) => {
     setSaved(false)
     setRecords(prev => {
-      const updated = [...prev]
-      for (const sid of enrolledStudentIds) {
-        const idx = updated.findIndex(r => r.studentId === sid && r.classId === selectedClass && r.date === selectedDate)
-        if (idx >= 0) updated[idx] = { ...updated[idx], status }
-        else updated.push({ id: Math.max(...updated.map(r => r.id)) + 1, studentId: sid, classId: selectedClass, date: selectedDate, status, remarks: '' })
+      const next = [...prev]
+      for (const e of roster) {
+        const idx = next.findIndex(r => r.studentId === e.studentId)
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], status }
+        } else {
+          next.push(newRecord(e.studentId, status))
+        }
       }
-      return updated
+      return next
     })
     toast('info', `All students marked as ${status}.`)
   }
 
-  const handleSave = () => {
-    setSaved(true)
-    toast('success', `Attendance saved for ${selectedDate}.`)
+  const handleSave = async () => {
+    try {
+      await saveAttendance(records)
+      const rows = await listAttendance(selectedClass, selectedDate)
+      setRecords(rows)
+      setSaved(true)
+      toast('success', `Attendance saved for ${selectedDate}.`)
+    } catch (err) {
+      toast('error', err instanceof Error ? err.message : 'Failed to save attendance.')
+    }
   }
 
-  const countByStatus = (s: AttendanceStatus) => todayRecords.filter(r => r.status === s).length
-  const marked = todayRecords.length
-  const presentRate = enrolledStudentIds.length > 0 ? Math.round((countByStatus('present') / enrolledStudentIds.length) * 100) : 0
+  const countByStatus = (s: AttendanceStatus) => records.filter(r => r.status === s).length
+  const marked = records.length
+  const presentRate = roster.length > 0 ? Math.round((countByStatus('present') / roster.length) * 100) : 0
+
+  if (loading) {
+    return <div className="p-6" style={{ color: '#9ca3af', fontFamily: 'Outfit, sans-serif' }}>Loading attendance…</div>
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -129,7 +195,7 @@ export default function Attendance() {
         <div className="px-5 py-3.5 border-b flex items-center justify-between" style={{ borderColor: '#f0f3fa', backgroundColor: '#f8f9fd' }}>
           <div>
             <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>
-              Students ({enrolledStudentIds.length})
+              Students ({roster.length})
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -139,11 +205,11 @@ export default function Attendance() {
               </div>
               <span className="text-xs font-semibold" style={{ fontFamily: 'Outfit, sans-serif', color: '#059669' }}>{presentRate}% present</span>
             </div>
-            <span className="text-xs" style={{ color: '#9ca3af' }}>{marked}/{enrolledStudentIds.length} marked</span>
+            <span className="text-xs" style={{ color: '#9ca3af' }}>{marked}/{roster.length} marked</span>
           </div>
         </div>
 
-        {enrolledStudentIds.length === 0 ? (
+        {roster.length === 0 ? (
           <div className="text-center py-16" style={{ color: '#9ca3af' }}>
             <div className="text-3xl mb-2">📋</div>
             <div className="font-medium" style={{ fontFamily: 'Outfit, sans-serif' }}>No enrolled students for this class</div>
@@ -151,19 +217,18 @@ export default function Attendance() {
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: '#f5f6fa' }}>
-            {enrolledStudentIds.map(sid => {
-              const student = students.find(s => s.id === sid)
-              if (!student) return null
-              const currentStatus = getStatus(sid)
+            {roster.map(e => {
+              const record = records.find(r => r.studentId === e.studentId)
+              const currentStatus = record?.status ?? null
               return (
-                <div key={sid} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors">
+                <div key={e.studentId} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors">
                   {/* Student info */}
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ backgroundColor: '#eff2ff', color: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>
-                    {student.firstName[0]}{student.lastName[0]}
+                    {initials(e.studentName)}
                   </div>
                   <div className="w-44 flex-shrink-0">
-                    <div className="text-sm font-medium" style={{ color: '#1a1f36' }}>{student.firstName} {student.lastName}</div>
-                    <div className="text-xs" style={{ color: '#9ca3af' }}>{student.code}</div>
+                    <div className="text-sm font-medium" style={{ color: '#1a1f36' }}>{e.studentName}</div>
+                    <div className="text-xs" style={{ color: '#9ca3af' }}>{e.studentCode}</div>
                   </div>
 
                   {/* Status buttons */}
@@ -174,7 +239,7 @@ export default function Attendance() {
                       return (
                         <button
                           key={s}
-                          onClick={() => setStatus(sid, s)}
+                          onClick={() => setStatus(e.studentId, s)}
                           className="flex-1 min-w-16 py-1.5 text-xs font-semibold rounded-lg border transition-all"
                           style={{
                             backgroundColor: active ? cfg.activeBg : '#f9fafb',
@@ -191,8 +256,8 @@ export default function Attendance() {
 
                   {/* Remarks */}
                   <input
-                    value={getRemarks(sid)}
-                    onChange={e => setRemarks(sid, e.target.value)}
+                    value={record?.remarks ?? ''}
+                    onChange={e2 => setRemarks(e.studentId, e2.target.value)}
                     placeholder="Remarks…"
                     className="hidden sm:block w-32 px-2.5 py-1.5 text-xs rounded-lg border outline-none transition-colors flex-shrink-0"
                     style={{ borderColor: '#e2e7f0', color: '#374151' }}

@@ -1,4 +1,20 @@
-import type { Student } from '../data/mockData'
+export type Status = 'active' | 'inactive'
+
+export interface Student {
+  id: number
+  code: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  departmentId: number
+  gender: 'male' | 'female'
+  dateOfBirth: string
+  address: string
+  photo?: string
+  status: Status
+  enrolledAt: string
+}
 
 const BASE_URL = '/api/students'
 

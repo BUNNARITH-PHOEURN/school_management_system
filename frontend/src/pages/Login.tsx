@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { login, type SessionUser } from '../api/auth'
 
 interface LoginProps {
-  onLogin: () => void
+  onLogin: (user: SessionUser) => void
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -10,19 +11,19 @@ export default function Login({ onLogin }: LoginProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     if (!email || !password) { setError('Please fill in all fields.'); return }
     setLoading(true)
-    setTimeout(() => {
+    try {
+      const user = await login(email, password)
+      onLogin(user)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid email or password.')
+    } finally {
       setLoading(false)
-      if (email === 'admin@school.edu' && password === 'password') {
-        onLogin()
-      } else {
-        setError('Invalid email or password. Try admin@school.edu / password')
-      }
-    }, 800)
+    }
   }
 
   return (

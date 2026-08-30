@@ -1,5 +1,9 @@
 const express = require('express');
 const studentRoutes = require('./routes/studentRoutes');
+const classRoutes = require('./routes/classRoutes');
+const enrollmentRoutes = require('./routes/enrollmentRoutes');
+const attendanceRoutes = require('./routes/attendanceRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
@@ -10,6 +14,10 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/students', studentRoutes);
+app.use('/api/classes', classRoutes);
+app.use('/api/enrollments', enrollmentRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/auth', authRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res) => {

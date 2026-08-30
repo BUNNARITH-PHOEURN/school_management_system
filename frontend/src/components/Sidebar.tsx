@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import type { SessionUser } from '../api/auth'
 
 export type Page =
   | 'dashboard' | 'users' | 'departments' | 'academic-years'
@@ -57,6 +58,7 @@ const navGroups: NavGroup[] = [
 ]
 
 interface SidebarProps {
+  user: SessionUser
   currentPage: Page
   onNavigate: (page: Page) => void
   collapsed: boolean
@@ -64,9 +66,11 @@ interface SidebarProps {
   onMobileClose: () => void
 }
 
-export default function Sidebar({ currentPage, onNavigate, collapsed, mobileOpen, onMobileClose }: SidebarProps) {
+export default function Sidebar({ user, currentPage, onNavigate, collapsed, mobileOpen, onMobileClose }: SidebarProps) {
   const nav = (page: Page) => { onNavigate(page); onMobileClose() }
   const w = collapsed ? 64 : 240
+  const initials = user.name.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+  const roleLabel = user.role === 'admin' ? 'Admin' : 'Moderator'
 
   const content = (
     <aside
@@ -136,12 +140,12 @@ export default function Sidebar({ currentPage, onNavigate, collapsed, mobileOpen
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = currentPage === 'profile' ? 'rgba(59,91,219,0.22)' : 'transparent' }}
         >
           <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ backgroundColor: '#3b5bdb', color: 'white', fontFamily: 'Outfit, sans-serif' }}>
-            AC
+            {initials}
           </div>
           {!collapsed && (
             <div className="text-left overflow-hidden">
-              <div className="text-sm font-medium text-white truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>Alexandra Chen</div>
-              <div className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.35)' }}>Admin</div>
+              <div className="text-sm font-medium text-white truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>{user.name}</div>
+              <div className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.35)' }}>{roleLabel}</div>
             </div>
           )}
         </button>

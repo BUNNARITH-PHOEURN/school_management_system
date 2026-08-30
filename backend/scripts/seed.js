@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const mysql = require('mysql2/promise');
+const { hashPassword } = require('../src/utils/password');
 
 // deterministic pseudo-random so every run seeds identical data
 let seed = 42;
@@ -259,6 +260,37 @@ async function main() {
     }
   }
 
+  // ---- attendance (recent days demo: full rosters for the first 6 classes)
+  const dayKey = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const recentDays = [];
+  for (let o = -5; o <= 0; o++) recentDays.push(dayKey(o));
+  const statusFor = (studentId, classId, dayIndex) => {
+    const roll = ((studentId * 17 + classId * 31 + dayIndex * 97) % 100);
+    if (roll < 82) return 'present';
+    if (roll < 90) return 'late';
+    if (roll < 96) return 'absent';
+    return 'permission';
+  };
+  const demoClassIds = classRows.slice(0, 6);
+  const [demoPairs] = await connection.query(
+    'SELECT student_id, class_id FROM enrollments WHERE status = ? AND class_id IN (?)',
+    ['enrolled', demoClassIds],
+  );
+  for (const [i, day] of recentDays.entries()) {
+    for (const { student_id, class_id } of demoPairs) {
+      const status = statusFor(student_id, class_id, i);
+      const remarks = status === 'present' ? '' : pick(['', '', '', 'Traffic', 'Medical appointment', 'Family event']);
+      await connection.query(
+        'INSERT IGNORE INTO attendance (student_id, class_id, date, status, remarks) VALUES (?, ?, ?, ?, ?)',
+        [student_id, class_id, day, status, remarks],
+      );
+    }
+  }
+
   // ---- users --------------------------------------------------------------
   for (const [name, email, role, lastLogin] of [
     ['Alexandra Chen', 'admin@school.edu', 'admin', '2026-08-23 09:12:00'],
@@ -269,8 +301,8 @@ async function main() {
     ['Frank Muller', 'f.muller@school.edu', 'moderator', null],
   ]) {
     await connection.query(
-      'INSERT INTO users (name, email, role, status, last_login) VALUES (?, ?, ?, ?, ?)',
-      [name, email, role, name === 'Daniel Obi' ? 'inactive' : 'active', lastLogin],
+      'INSERT INTO users (name, email, role, status, last_login, password_hash) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, email, role, name === 'Daniel Obi' ? 'inactive' : 'active', lastLogin, hashPassword('password')],
     );
   }
 
