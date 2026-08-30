@@ -292,17 +292,19 @@ async function main() {
   }
 
   // ---- users --------------------------------------------------------------
-  for (const [name, email, role, lastLogin] of [
-    ['Alexandra Chen', 'admin@school.edu', 'admin', '2026-08-23 09:12:00'],
-    ['Benjamin Torres', 'b.torres@school.edu', 'moderator', '2026-08-22 14:40:00'],
-    ['Carmen Liu', 'c.liu@school.edu', 'moderator', '2026-08-21 11:05:00'],
-    ['Daniel Obi', 'd.obi@school.edu', 'moderator', '2026-06-20 16:30:00'],
-    ['Esra Yilmaz', 'e.yilmaz@school.edu', 'moderator', '2026-08-19 08:22:00'],
-    ['Frank Muller', 'f.muller@school.edu', 'moderator', null],
+  // teacher_id links moderator accounts to the teacher whose classes they own.
+  // Admin (teacher_id NULL) can see and manage every class.
+  for (const [name, email, role, lastLogin, teacherId] of [
+    ['Alexandra Chen', 'admin@school.edu', 'admin', '2026-08-23 09:12:00', null],
+    ['Benjamin Torres', 'b.torres@school.edu', 'moderator', '2026-08-22 14:40:00', 1],
+    ['Carmen Liu', 'c.liu@school.edu', 'moderator', '2026-08-21 11:05:00', 2],
+    ['Daniel Obi', 'd.obi@school.edu', 'moderator', '2026-06-20 16:30:00', 3],
+    ['Esra Yilmaz', 'e.yilmaz@school.edu', 'moderator', '2026-08-19 08:22:00', 4],
+    ['Frank Muller', 'f.muller@school.edu', 'moderator', null, 5],
   ]) {
     await connection.query(
-      'INSERT INTO users (name, email, role, status, last_login, password_hash) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, email, role, name === 'Daniel Obi' ? 'inactive' : 'active', lastLogin, hashPassword('password')],
+      'INSERT INTO users (name, email, role, status, last_login, password_hash, teacher_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [name, email, role, name === 'Daniel Obi' ? 'inactive' : 'active', lastLogin, hashPassword('password'), teacherId],
     );
   }
 

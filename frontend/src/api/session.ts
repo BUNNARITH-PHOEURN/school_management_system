@@ -21,3 +21,8 @@ export function saveSession(user: SessionUser) {
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
 }
+
+export function authHeaders(): Record<string, string> {
+  const session = loadSession()
+  return session && session.id ? { 'x-user-id': String(session.id) } : {}
+}

@@ -20,6 +20,13 @@ async function getClassById(id) {
   return rows[0];
 }
 
+async function getClassesByTeacher(teacherId) {
+  return query(
+    'SELECT c.* FROM classes c JOIN class_teachers ct ON ct.class_id = c.id WHERE ct.teacher_id = ? ORDER BY c.id',
+    [teacherId],
+  );
+}
+
 async function createClass(cls) {
   const fields = CLASS_FIELDS.filter((f) => cls[f] !== undefined);
   const placeholders = fields.map(() => '?').join(', ');
@@ -56,6 +63,7 @@ async function deleteClass(id) {
 module.exports = {
   getAllClasses,
   getClassById,
+  getClassesByTeacher,
   createClass,
   updateClass,
   deleteClass,

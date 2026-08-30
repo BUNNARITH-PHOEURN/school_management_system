@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { listClasses, type Class } from '../api/classes'
+import { listClasses, listMyClasses, type Class } from '../api/classes'
 import { listEnrollments, type EnrollmentWithNames } from '../api/enrollments'
 import { listAttendance, saveAttendance, type AttendanceWithNames, type AttendanceStatus } from '../api/attendance'
+import { loadSession } from '../api/session'
 import { useToast } from '../context/ToastContext'
 
 const statusConfig: Record<AttendanceStatus, { label: string; color: string; activeBg: string; activeBorder: string }> = {
@@ -33,9 +34,16 @@ export default function Attendance() {
   useEffect(() => {
     (async () => {
       try {
-        const [classRows, enrollmentRows] = await Promise.all([listClasses(), listEnrollments()])
+        const session = loadSession()
+        const [classRows, enrollmentRows] = await Promise.all([
+          session?.role === 'admin' ? listClasses() : listMyClasses(),
+          listEnrollments(),
+        ])
         setClasses(classRows)
         setEnrollments(enrollmentRows)
+        if (session?.role !== 'admin' && !classRows.some(c => c.id === selectedClass)) {
+          setSelectedClass(classRows[0]?.id ?? 0)
+        }
       } catch (err) {
         toast('error', err instanceof Error ? err.message : 'Failed to load data.')
       } finally {

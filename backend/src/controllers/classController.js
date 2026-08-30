@@ -15,6 +15,20 @@ exports.getAllClasses = asyncHandler(async (req, res) => {
   res.json(classes);
 });
 
+exports.getMyClasses = asyncHandler(async (req, res) => {
+  if (req.user.role === 'admin') {
+    const classes = await classModel.getAllClasses();
+    return res.json(classes);
+  }
+
+  if (!req.user.teacher_id) {
+    return res.json([]);
+  }
+
+  const classes = await classModel.getClassesByTeacher(req.user.teacher_id);
+  res.json(classes);
+});
+
 exports.getClassById = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) {

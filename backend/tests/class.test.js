@@ -7,6 +7,26 @@ jest.mock('../src/config/db', () => ({
   pool: { end: jest.fn() },
 }));
 
+const adminUser = {
+  id: 1,
+  name: 'Alexandra Chen',
+  email: 'admin@school.edu',
+  role: 'admin',
+  status: 'active',
+  teacher_id: null,
+  last_login: null,
+};
+
+const modUser = {
+  id: 2,
+  name: 'Benjamin Torres',
+  email: 'b.torres@school.edu',
+  role: 'moderator',
+  status: 'active',
+  teacher_id: 1,
+  last_login: null,
+};
+
 const classRow = {
   id: 1,
   name: 'Algebra I — Section A',
@@ -33,6 +53,50 @@ describe('GET /api/classes', () => {
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body).toHaveLength(1);
     expect(res.body[0]).toMatchObject({ id: 1, name: 'Algebra I — Section A' });
+  });
+});
+
+describe('GET /api/classes/mine', () => {
+  test('returns 401 without an x-user-id header', async () => {
+    const res = await request(app).get('/api/classes/mine');
+
+    expect(res.status).toBe(401);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  test('admin sees every class', async () => {
+    query.mockResolvedValueOnce([adminUser]);
+    query.mockResolvedValueOnce([classRow]);
+
+    const res = await request(app).get('/api/classes/mine').set('x-user-id', '1');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ id: 1, name: 'Algebra I — Section A' });
+  });
+
+  test('moderator only sees the classes of their assigned teacher', async () => {
+    query.mockResolvedValueOnce([modUser]);
+    query.mockResolvedValueOnce([{ ...classRow, id: 6 }, { ...classRow, id: 26 }]);
+
+    const res = await request(app).get('/api/classes/mine').set('x-user-id', '2');
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((c) => c.id)).toEqual([6, 26]);
+
+    const [sql, params] = query.mock.calls[1];
+    expect(sql).toContain('JOIN class_teachers');
+    expect(params).toEqual([1]);
+  });
+
+  test('moderator without a teacher sees no classes', async () => {
+    query.mockResolvedValueOnce([{ ...modUser, teacher_id: null }]);
+
+    const res = await request(app).get('/api/classes/mine').set('x-user-id', '2');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+    expect(query).toHaveBeenCalledTimes(1);
   });
 });
 

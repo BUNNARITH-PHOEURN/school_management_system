@@ -7,7 +7,7 @@ async function findByEmail(email) {
 
 async function findById(id) {
   const rows = await query(
-    'SELECT id, name, email, role, status, last_login FROM users WHERE id = ? LIMIT 1',
+    'SELECT id, name, email, role, status, teacher_id, last_login FROM users WHERE id = ? LIMIT 1',
     [id],
   );
   return rows[0];

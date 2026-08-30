@@ -181,8 +181,10 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255) NULL,
   role ENUM('admin', 'moderator') NOT NULL DEFAULT 'moderator',
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  teacher_id INT NULL,
   created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   last_login DATETIME NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY users_email_unique (email)
+  UNIQUE KEY users_email_unique (email),
+  KEY users_teacher_id (teacher_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

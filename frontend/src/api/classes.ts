@@ -1,5 +1,7 @@
 export type ClassStatus = 'active' | 'inactive'
 
+import { authHeaders } from './session'
+
 export interface Class {
   id: number
   name: string
@@ -56,6 +58,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export async function listClasses(): Promise<Class[]> {
   const res = await fetch(BASE_URL)
+  const rows = await handleResponse<ApiClass[]>(res)
+  return rows.map(fromApi)
+}
+
+export async function listMyClasses(): Promise<Class[]> {
+  const res = await fetch(`${BASE_URL}/mine`, { headers: authHeaders() })
   const rows = await handleResponse<ApiClass[]>(res)
   return rows.map(fromApi)
 }

@@ -1,5 +1,7 @@
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'permission'
 
+import { authHeaders } from './session'
+
 export interface AttendanceRecord {
   id: number
   studentId: number
@@ -84,7 +86,7 @@ export async function createAttendance(payload: {
 }): Promise<AttendanceWithNames> {
   const res = await fetch(BASE_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
       student_id: payload.studentId,
       class_id: payload.classId,
@@ -107,7 +109,7 @@ export async function saveAttendance(
 ): Promise<void> {
   const res = await fetch(`${BASE_URL}/batch`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(
       records.map((r) => ({
         student_id: r.studentId,
@@ -127,13 +129,13 @@ export async function updateAttendance(
 ): Promise<AttendanceWithNames> {
   const res = await fetch(`${BASE_URL}/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(payload),
   })
   return fromApi(await handleResponse<ApiAttendance>(res))
 }
 
 export async function deleteAttendance(id: number): Promise<void> {
-  const res = await fetch(`${BASE_URL}/${id}`, { method: 'DELETE' })
+  const res = await fetch(`${BASE_URL}/${id}`, { method: 'DELETE', headers: authHeaders() })
   await handleResponse<{ message: string }>(res)
 }
