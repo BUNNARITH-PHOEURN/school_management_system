@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { students as initialStudents, departments, getDepartmentName, type Student, type Status } from '../data/mockData'
+import { useCallback, useEffect, useState } from 'react'
+import { departments, getDepartmentName, type Student, type Status } from '../data/mockData'
+import { listStudents, createStudent, updateStudent } from '../api/students'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
 import Pagination from '../components/Pagination'
@@ -10,12 +11,13 @@ const PAGE_SIZE = 8
 
 export default function Students() {
   const { toast } = useToast()
-  const [data, setData] = useState(initialStudents)
+  const [data, setData] = useState<Student[]>([])
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | Status>('all')
   const [filterDept, setFilterDept] = useState<number | 'all'>('all')
   const [page, setPage] = useState(1)
-  const [loading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Student | null>(null)
   const [confirmId, setConfirmId] = useState<number | null>(null)
@@ -24,6 +26,22 @@ export default function Students() {
     firstName: string; lastName: string; email: string; phone: string
     departmentId: number; gender: 'male' | 'female'; dateOfBirth: string; address: string
   }>({ firstName: '', lastName: '', email: '', phone: '', departmentId: 1, gender: 'male', dateOfBirth: '', address: '' })
+
+  const loadStudents = useCallback(async () => {
+    setLoading(true)
+    try {
+      const students = await listStudents()
+      setData(students)
+    } catch (err) {
+      toast('error', err instanceof Error ? err.message : 'Failed to load students.')
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    loadStudents()
+  }, [loadStudents])
 
   const filtered = data.filter(s =>
     (filterStatus === 'all' || s.status === filterStatus) &&
@@ -46,23 +64,42 @@ export default function Students() {
     setForm({ firstName: s.firstName, lastName: s.lastName, email: s.email, phone: s.phone, departmentId: s.departmentId, gender: s.gender, dateOfBirth: s.dateOfBirth, address: s.address })
     setModalOpen(true)
   }
-  const handleSave = () => {
-    if (editing) {
-      setData(prev => prev.map(s => s.id === editing.id ? { ...s, ...form } : s))
-      toast('success', 'Student updated successfully.')
-    } else {
-      const newId = Math.max(...data.map(s => s.id)) + 1
-      setData(prev => [...prev, { id: newId, code: `STU-${String(newId).padStart(3, '0')}`, ...form, photo: undefined, status: 'active', enrolledAt: new Date().toISOString().slice(0, 10) }])
-      toast('success', 'Student added successfully.')
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      if (editing) {
+        const updated = await updateStudent(editing.id, form)
+        setData(prev => prev.map(s => s.id === updated.id ? updated : s))
+        toast('success', 'Student updated successfully.')
+      } else {
+        const created = await createStudent({
+          ...form,
+          status: 'active',
+          dateOfBirth: form.dateOfBirth,
+        })
+        setData(prev => [created, ...prev])
+        toast('success', `Student added successfully (${created.code}).`)
+      }
+      setModalOpen(false)
+    } catch (err) {
+      toast('error', err instanceof Error ? err.message : 'Failed to save student.')
+    } finally {
+      setSaving(false)
     }
-    setModalOpen(false)
   }
-  const toggleStatus = (id: number) => {
+  const toggleStatus = async (id: number) => {
     const student = data.find(s => s.id === id)
-    const next = student?.status === 'active' ? 'inactive' : 'active'
-    setData(prev => prev.map(s => s.id === id ? { ...s, status: next } : s))
-    toast(next === 'active' ? 'success' : 'info', `Student ${next === 'active' ? 'activated' : 'deactivated'}.`)
-    setConfirmId(null)
+    if (!student) return
+    const next = student.status === 'active' ? 'inactive' : 'active'
+    try {
+      const updated = await updateStudent(id, { status: next })
+      setData(prev => prev.map(s => s.id === id ? updated : s))
+      toast(next === 'active' ? 'success' : 'info', `Student ${next === 'active' ? 'activated' : 'deactivated'}.`)
+    } catch (err) {
+      toast('error', err instanceof Error ? err.message : 'Failed to update status.')
+    } finally {
+      setConfirmId(null)
+    }
   }
 
   const activeCount = data.filter(s => s.status === 'active').length
@@ -175,7 +212,7 @@ export default function Students() {
         footer={
           <>
             <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-medium rounded-lg border" style={{ borderColor: '#e2e7f0', color: '#374151', fontFamily: 'Outfit, sans-serif' }}>Cancel</button>
-            <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold rounded-lg text-white" style={{ backgroundColor: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>{editing ? 'Save Changes' : 'Add Student'}</button>
+            <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-60" style={{ backgroundColor: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>{saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Student'}</button>
           </>
         }
       >

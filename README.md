@@ -14,9 +14,10 @@ Full-stack app: **React (Vite)** frontend + **Express (MySQL)** backend.
 
 ```
 school_management_system/
-├── backend/
+├── backend/                    # Express API (runs standalone)
 │   ├── schema.sql              # full database schema (all tables + FKs)
 │   ├── scripts/setup-db.js     # creates database & tables from schema.sql
+│   ├── scripts/seed.js         # wipes & fills demo data
 │   ├── server.js               # entry point
 │   ├── src/
 │   │   ├── app.js              # express app (routes mounted here)
@@ -26,8 +27,7 @@ school_management_system/
 │   │   └── routes/
 │   ├── tests/                  # jest + supertest (DB is mocked)
 │   └── .env                    # database credentials (you create this)
-├── frontend/                   # Vite React app
-└── package.json                # runs backend + frontend together
+└── frontend/                   # Vite React app (runs standalone)
 ```
 
 ## Prerequisites
@@ -37,12 +37,9 @@ school_management_system/
 
 ## Step-by-step Setup
 
-### 1. Install dependencies (all three folders)
+### 1. Install dependencies (both folders)
 
 ```bash
-# from project root
-npm install
-
 cd backend
 npm install
 
@@ -73,28 +70,54 @@ node scripts/setup-db.js
 
 This creates the `school_management` database and **all 10 tables** (departments, students, teachers, subjects, classes, enrollments, attendance, etc.) with foreign keys, using `schema.sql`.
 
-### 4. Run the app (backend + frontend together)
+### 3b. Seed sample data (optional)
+
+```bash
+cd backend
+node scripts/seed.js
+```
+
+Wipes all tables and inserts realistic demo data: 60 students, 24 teachers, 36 classes, 200+ enrollments, 370+ attendance records, etc. Safe to re-run anytime for a clean slate.
+
+### 4. Run the app
+
+**One command — both servers (recommended):**
 
 ```bash
 # from project root
-npm run dev
+npm start
 ```
 
-You should see:
+Output is tagged per process:
 
 ```
-[backend]  Server running on http://localhost:5000
+Starting backend + frontend. Press Ctrl+C to stop both.
+[backend] Server running on http://localhost:5000
 [frontend] VITE ready ➜ Local: http://localhost:8443/
 ```
 
-Both auto-reload on save (backend uses nodemon, frontend uses Vite HMR).
+`Ctrl+C` stops both at once (no orphaned processes).
 
-### Run them separately (optional)
+<details>
+<summary>Or run each folder standalone in separate terminals</summary>
+
+**Terminal 1 — backend (API on http://localhost:5000)**
 
 ```bash
-cd backend   && npm run dev    # API only  → http://localhost:5000
-cd frontend  && npm run dev    # UI only   → http://localhost:8443
+cd backend
+npm run dev
 ```
+
+**Terminal 2 — frontend (UI on http://localhost:8443)**
+
+```bash
+cd frontend
+npm run dev
+```
+
+</details>
+
+Both modes auto-reload on save (backend uses nodemon, frontend uses Vite HMR). The frontend proxies `/api/*` requests to `http://127.0.0.1:5000`, so the backend must be running for data to load.
 
 ## Run Backend Tests
 
