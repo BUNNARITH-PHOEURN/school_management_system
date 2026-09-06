@@ -3,9 +3,10 @@ import { login, type SessionUser } from '../api/auth'
 
 interface LoginProps {
   onLogin: (user: SessionUser) => void
+  onBackToLanding?: () => void
 }
 
-export default function Login({ onLogin }: LoginProps) {
+export default function Login({ onLogin, onBackToLanding }: LoginProps) {
   const [email, setEmail] = useState('admin@school.edu')
   const [password, setPassword] = useState('password')
   const [loading, setLoading] = useState(false)
@@ -75,6 +76,22 @@ export default function Login({ onLogin }: LoginProps) {
       {/* Right panel */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-sm">
+          {onBackToLanding && (
+            <button
+              type="button"
+              onClick={onBackToLanding}
+              className="mb-6 flex items-center gap-1.5 text-sm font-medium cursor-pointer"
+              style={{ color: '#3b5bdb' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#3451c7')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#3b5bdb')}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              Back to Home
+            </button>
+          )}
+
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#3b5bdb' }}>

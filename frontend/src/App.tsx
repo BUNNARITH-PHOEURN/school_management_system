@@ -3,6 +3,7 @@ import Sidebar, { type Page } from './components/Sidebar'
 import TopBar from './components/TopBar'
 import { ToastProvider } from './context/ToastContext'
 import Login from './pages/Login'
+import Landing from './pages/Landing'
 import { checkSession, type SessionUser } from './api/auth'
 import { loadSession, saveSession, clearSession } from './api/session'
 import Dashboard from './pages/Dashboard'
@@ -53,6 +54,7 @@ function AppShell() {
   const [currentPage, setCurrentPage] = useState<Page>(() => getPageFromHash())
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [loggedOutView, setLoggedOutView] = useState<'landing' | 'login'>('landing')
 
   // Keep the current page in the URL hash so it survives refresh,
   // and so the browser back/forward buttons move between pages.
@@ -106,7 +108,17 @@ function AppShell() {
   }
 
   if (!session) {
-    return <Login onLogin={handleLogin} />
+    if (loggedOutView === 'login') {
+      return (
+        <Login
+          onLogin={handleLogin}
+          onBackToLanding={() => setLoggedOutView('landing')}
+        />
+      )
+    }
+    return (
+      <Landing onLoginClick={() => setLoggedOutView('login')} />
+    )
   }
 
   const PageComponent = pageComponents[currentPage]
