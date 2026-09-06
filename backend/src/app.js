@@ -4,6 +4,8 @@ const classRoutes = require('./routes/classRoutes');
 const enrollmentRoutes = require('./routes/enrollmentRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+const departmentRoutes = require('./routes/departmentRoutes');
 
 const app = express();
 
@@ -18,6 +20,8 @@ app.use('/api/classes', classRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/departments', departmentRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res) => {

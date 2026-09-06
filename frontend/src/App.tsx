@@ -110,6 +110,9 @@ function AppShell() {
   }
 
   const PageComponent = pageComponents[currentPage]
+  const page = currentPage === 'profile'
+    ? <Profile onSessionUpdate={user => { saveSession(user); setSession(user) }} />
+    : <PageComponent />
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#f0f3fa' }}>
@@ -131,7 +134,7 @@ function AppShell() {
           onNavigate={navigate}
         />
         <main className="flex-1 overflow-y-auto">
-          <PageComponent />
+          {page}
         </main>
       </div>
     </div>

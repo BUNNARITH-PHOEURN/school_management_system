@@ -86,9 +86,11 @@ export default function TopBar({ user, currentPage, onToggleSidebar, onLogout, o
             onClick={() => setMenuOpen(v => !v)}
             className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-100 transition-colors"
           >
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ backgroundColor: '#3b5bdb', color: 'white', fontFamily: 'Outfit, sans-serif' }}>
-              {initials}
-            </div>
+            {user.avatarUrl ? <img src={user.avatarUrl} alt="Profile" className="w-7 h-7 rounded-full object-cover" /> : (
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ backgroundColor: '#3b5bdb', color: 'white', fontFamily: 'Outfit, sans-serif' }}>
+                {initials}
+              </div>
+            )}
             <span className="hidden sm:block text-sm font-medium" style={{ color: '#1a1f36', fontFamily: 'Outfit, sans-serif' }}>{firstName}</span>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="6 9 12 15 18 9" />
@@ -103,6 +105,7 @@ export default function TopBar({ user, currentPage, onToggleSidebar, onLogout, o
                   <div className="text-xs" style={{ color: '#9ca3af' }}>Signed in as</div>
                   <div className="text-sm font-semibold mt-0.5" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{user.name}</div>
                   <div className="text-xs" style={{ color: '#9ca3af' }}>{user.email}</div>
+                  <div className="text-xs capitalize" style={{ color: '#9ca3af' }}>{user.role}</div>
                 </div>
                 <div className="py-1">
                   <button onClick={() => { setMenuOpen(false); onNavigate('profile') }} className="w-full text-left px-4 py-2 text-sm transition-colors hover:bg-gray-50" style={{ color: '#374151' }}>

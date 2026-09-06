@@ -1,4 +1,4 @@
-const BASE_URL = '/api/auth'
+import { apiClient } from './client'
 
 export type Role = 'admin' | 'moderator'
 
@@ -9,34 +9,31 @@ export interface SessionUser {
   role: Role
   status: 'active' | 'inactive'
   lastLogin: string | null
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  const body = await res.json().catch(() => null)
-  if (!res.ok) {
-    const message =
-      body && Array.isArray(body.errors)
-        ? body.errors.join(', ')
-        : body?.error || `Request failed (${res.status})`
-    throw new Error(message)
-  }
-  return body as T
+  phone?: string
+  bio?: string
+  createdAt?: string | null
+  avatarUrl?: string
 }
 
 export async function login(email: string, password: string): Promise<SessionUser> {
-  const res = await fetch(`${BASE_URL}/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  })
-  const body = await handleResponse<{ user: SessionUser }>(res)
-  return body.user
+  const { data } = await apiClient.post<{ user: SessionUser }>('/auth/login', { email, password })
+  return data.user
 }
 
 export async function checkSession(userId: number): Promise<SessionUser> {
-  const res = await fetch(`${BASE_URL}/me`, {
-    headers: { 'x-user-id': String(userId) },
-  })
-  const body = await handleResponse<{ user: SessionUser }>(res)
-  return body.user
+  const { data } = await apiClient.get<{ user: SessionUser }>('/auth/me', { headers: { 'x-user-id': String(userId) } })
+  return data.user
+}
+
+export async function updateProfile(data: { name: string; email: string; phone: string; bio: string; avatarUrl: string }): Promise<SessionUser> {
+  const response = await apiClient.put<{ user: SessionUser }>('/auth/me', data)
+  return response.data.user
+}
+
+export async function updatePassword(current: string, next: string): Promise<void> {
+  await apiClient.put('/auth/password', { current, next })
+}
+
+export async function deactivateAccount(): Promise<void> {
+  await apiClient.delete('/auth/me')
 }

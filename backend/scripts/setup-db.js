@@ -22,6 +22,15 @@ async function main() {
 
   const schema = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
   await connection.query(schema);
+  for (const statement of [
+    'ALTER TABLE users ADD COLUMN phone VARCHAR(50) NULL',
+    'ALTER TABLE users ADD COLUMN bio TEXT NULL',
+    'ALTER TABLE users ADD COLUMN avatar_url MEDIUMTEXT NULL',
+  ]) {
+    try { await connection.query(statement); } catch (error) {
+      if (error.code !== 'ER_DUP_FIELDNAME') throw error;
+    }
+  }
   console.log('Schema executed (all tables created if missing)');
 
   const [tables] = await connection.query('SHOW TABLES');

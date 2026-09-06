@@ -1,26 +1,39 @@
-import { useState } from 'react'
-import { users as initial, type User, type Role } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import { createUser, listUsers, updateUser, updateUserStatus, type UserRecord } from '../api/users'
+import type { Role } from '../api/auth'
+import { getApiError } from '../api/client'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
 
 export default function Users() {
-  const [data, setData] = useState(initial)
+  const [data, setData] = useState<UserRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<User | null>(null)
+  const [editing, setEditing] = useState<UserRecord | null>(null)
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [form, setForm] = useState({ name: '', email: '', role: 'moderator' as Role, password: '' })
+
+  useEffect(() => { listUsers().then(result => setData(result.users)).catch(err => setError(err instanceof Error ? err.message : 'Unable to load users')).finally(() => setLoading(false)) }, [])
 
   const filtered = data.filter(u => `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(search.toLowerCase()))
 
   const openCreate = () => { setEditing(null); setForm({ name: '', email: '', role: 'moderator', password: '' }); setModalOpen(true) }
-  const openEdit = (u: User) => { setEditing(u); setForm({ name: u.name, email: u.email, role: u.role, password: '' }); setModalOpen(true) }
-  const handleSave = () => {
-    if (editing) setData(prev => prev.map(u => u.id === editing.id ? { ...u, name: form.name, email: form.email, role: form.role } : u))
-    else setData(prev => [...prev, { id: Math.max(...prev.map(u => u.id)) + 1, name: form.name, email: form.email, role: form.role, status: 'active' as const, createdAt: new Date().toISOString().slice(0, 10), lastLogin: '—' }])
-    setModalOpen(false)
+  const openEdit = (u: UserRecord) => { setEditing(u); setForm({ name: u.name, email: u.email, role: u.role, password: '' }); setModalOpen(true) }
+  const handleSave = async () => {
+    try {
+      const result = editing ? await updateUser(editing.id, { name: form.name, email: form.email, role: form.role }) : await createUser(form)
+      setData(prev => editing ? prev.map(u => u.id === result.user.id ? result.user : u) : [...prev, result.user])
+      setModalOpen(false)
+      setError('')
+    } catch (err) { setError(getApiError(err, 'Unable to save user')) }
   }
-  const toggleStatus = (id: number) => setData(prev => prev.map(u => u.id === id ? { ...u, status: u.status === 'active' ? 'inactive' : 'active' } : u))
+  const toggleStatus = async (id: number) => {
+    const user = data.find(u => u.id === id)
+    if (!user) return
+    try { const result = await updateUserStatus(id, user.status === 'active' ? 'inactive' : 'active'); setData(prev => prev.map(u => u.id === id ? result.user : u)) } catch (err) { setError(getApiError(err, 'Unable to update status')) }
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -31,6 +44,7 @@ export default function Users() {
         </div>
         <button onClick={openCreate} className="px-4 py-2 text-sm font-semibold rounded-lg text-white" style={{ backgroundColor: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>+ Add User</button>
       </div>
+      {error && <div className="px-3 py-2 rounded-lg text-sm" style={{ backgroundColor: '#fff1f2', color: '#9f1239' }}>{error}</div>}
 
       <div className="bg-white rounded-xl border p-4 flex items-center gap-3" style={{ borderColor: '#e2e7f0' }}>
         <div className="relative flex-1">
@@ -49,7 +63,7 @@ export default function Users() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(u => (
+            {loading ? <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">Loading users...</td></tr> : filtered.map(u => (
               <tr key={u.id} className="border-t hover:bg-gray-50 transition-colors" style={{ borderColor: '#f0f3fa' }}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
