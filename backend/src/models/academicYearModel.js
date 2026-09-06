@@ -8,12 +8,18 @@ const ACADEMIC_YEAR_FIELDS = [
 ];
 
 async function getAllAcademicYears() {
-  return query('SELECT * FROM academic_years ORDER BY id DESC');
+  return query(
+    `SELECT id, name, DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date,
+      DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date, status
+     FROM academic_years ORDER BY id DESC`,
+  );
 }
 
 async function getAcademicYearById(id) {
   const rows = await query(
-    'SELECT * FROM academic_years WHERE id = ? LIMIT 1',
+    `SELECT id, name, DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date,
+      DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date, status
+     FROM academic_years WHERE id = ? LIMIT 1`,
     [id]
   );
 

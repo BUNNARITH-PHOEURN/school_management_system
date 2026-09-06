@@ -87,12 +87,25 @@ function parseId(id) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function todayAsDateString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 exports.getAllStudents = asyncHandler(async (req, res) => {
   const students = await studentModel.getAllStudents();
   res.json(students);
+});
+
+exports.getNextCode = asyncHandler(async (req, res) => {
+  const code = await studentModel.getNextStudentCode();
+  res.json({ code });
 });
 
 exports.getStudentById = asyncHandler(async (req, res) => {
@@ -115,7 +128,7 @@ exports.createStudent = asyncHandler(async (req, res) => {
   }
 
   if (data.enrolled_at === undefined) {
-    data.enrolled_at = new Date().toISOString().slice(0, 10);
+    data.enrolled_at = todayAsDateString();
   }
 
   try {

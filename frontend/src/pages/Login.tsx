@@ -3,13 +3,14 @@ import { login, register, type SessionUser } from '../api/auth'
 
 interface LoginProps {
   onLogin: (user: SessionUser) => void
+  initialRegistering?: boolean
 }
 
-export default function Login({ onLogin }: LoginProps) {
-  const [email, setEmail] = useState('admin@school.edu')
-  const [password, setPassword] = useState('password')
+export default function Login({ onLogin, initialRegistering = false }: LoginProps) {
+  const [email, setEmail] = useState()
+  const [password, setPassword] = useState()
   const [name, setName] = useState('')
-  const [isRegistering, setIsRegistering] = useState(false)
+  const [isRegistering, setIsRegistering] = useState(initialRegistering)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -159,12 +160,6 @@ export default function Login({ onLogin }: LoginProps) {
               {isRegistering ? 'Sign in' : 'Register'}
             </button>
           </p>
-
-          <div className="mt-6 p-4 rounded-lg" style={{ backgroundColor: '#eff2ff', border: '1px solid #c1ceff' }}>
-            <p className="text-xs font-medium mb-1" style={{ color: '#3451c7', fontFamily: 'Outfit, sans-serif' }}>Demo credentials</p>
-            <p className="text-xs" style={{ color: '#6b7280' }}>Email: admin@school.edu</p>
-            <p className="text-xs" style={{ color: '#6b7280' }}>Password: password</p>
-          </div>
         </div>
       </div>
     </div>

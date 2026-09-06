@@ -1,4 +1,5 @@
 const userModel = require('../models/userModel');
+const studentModel = require('../models/studentModel');
 const { hashPassword } = require('../utils/password');
 
 const asyncHandler = (fn) => (req, res, next) =>
@@ -18,6 +19,7 @@ function toSessionUser(row) {
   if (row.bio != null) user.bio = row.bio;
   if (row.avatar_url != null) user.avatarUrl = row.avatar_url;
   if (row.created_at != null) user.createdAt = row.created_at;
+  if (row.student_id != null) user.studentId = row.student_id;
 
   return user;
 }
@@ -30,14 +32,94 @@ function validateRegistration({ name, email, password }) {
   return errors;
 }
 
+function validateStudentRegistration({ department_id, gender, date_of_birth, photo }) {
+  const errors = [];
+  if (department_id != null && department_id !== '') {
+    const n = Number.parseInt(department_id, 10);
+    if (!Number.isInteger(n) || n <= 0) errors.push('department_id must be a positive integer');
+  }
+  if (gender != null && gender !== '') {
+    const g = String(gender).toLowerCase();
+    if (!['male', 'female', 'other'].includes(g)) errors.push('gender must be one of: male, female, other');
+  }
+  if (date_of_birth != null && date_of_birth !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(date_of_birth)) {
+    errors.push('date_of_birth must be in YYYY-MM-DD format');
+  }
+  if (photo != null && photo !== '' &&
+    (typeof photo !== 'string' || !/^data:image\/(jpeg|png|gif);base64,/.test(photo) || photo.length > 4_000_000)) {
+    errors.push('photo must be a valid JPG, PNG or GIF image smaller than 3 MB');
+  }
+  return errors;
+}
+
+function isStudentRegistration(body) {
+  return body && (
+    body.student_code !== undefined ||
+    body.department_id !== undefined ||
+    body.date_of_birth !== undefined ||
+    body.gender !== undefined
+  );
+}
+
 exports.register = asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body || {};
+  const body = req.body || {};
+  const { name, email, password } = body;
   const errors = validateRegistration({ name, email, password });
   if (errors.length) return res.status(400).json({ errors });
 
   const normalizedEmail = email.trim().toLowerCase();
   if (await userModel.findByEmail(normalizedEmail)) {
     return res.status(409).json({ error: 'An account with this email already exists' });
+  }
+
+  if (isStudentRegistration(body)) {
+    const studentErrors = validateStudentRegistration(body);
+    if (studentErrors.length) return res.status(400).json({ errors: studentErrors });
+
+    const fullName = name.trim();
+    const nameParts = fullName.split(/\s+/);
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || firstName;
+
+    try {
+      const user = await userModel.create({
+        name: fullName,
+        email: normalizedEmail,
+        passwordHash: hashPassword(password),
+        role: 'student',
+        avatarUrl: body.photo && body.photo !== '' ? body.photo : null,
+      });
+
+      let student;
+      try {
+        student = await studentModel.createStudent({
+          code: body.student_code && body.student_code !== '' ? String(body.student_code).trim() : undefined,
+          first_name: firstName,
+          last_name: lastName,
+          email: normalizedEmail,
+          phone: body.phone || null,
+          department_id: body.department_id && body.department_id !== '' ? Number.parseInt(body.department_id, 10) : null,
+          gender: body.gender || null,
+          date_of_birth: body.date_of_birth || null,
+          address: body.address || null,
+        });
+        await userModel.update(user.id, { student_id: student.id });
+      } catch (error) {
+        await userModel.remove(user.id);
+        throw error;
+      }
+
+      const fresh = await userModel.findById(user.id);
+      return res.status(201).json({ user: toSessionUser(fresh) });
+    } catch (error) {
+      if (error && error.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ error: 'An account with this email or student code already exists' });
+      }
+      if (error && error.code === 'ER_NO_REFERENCED_ROW_2') {
+        return res.status(400).json({ error: 'The selected department does not exist' });
+      }
+      throw error;
+    }
   }
 
   try {

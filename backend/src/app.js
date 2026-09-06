@@ -9,6 +9,7 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
+const teacherAssignmentRoutes = require('./routes/teacherAssignmentRoutes');
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/teachers', teacherRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/subjects', subjectRoutes);
+app.use('/api/teacher-assignments', teacherAssignmentRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res) => {

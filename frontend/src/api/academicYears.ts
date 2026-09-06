@@ -1,3 +1,5 @@
+import { apiClient } from './client'
+
 export type AcademicYearStatus = 'active' | 'inactive'
 
 export interface AcademicYear {
@@ -16,40 +18,37 @@ type ApiAcademicYear = {
   status: AcademicYearStatus
 }
 
-const BASE_URL = '/api/academicYears'
+const BASE_URL = '/academicYears'
 
 function fromApi(row: ApiAcademicYear): AcademicYear {
-  return { id: row.id, name: row.name, startDate: row.start_date, endDate: row.end_date, status: row.status }
-}
-
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, options)
-  const body = await res.json().catch(() => null)
-  if (!res.ok) throw new Error(body?.message || body?.error || `Request failed (${res.status})`)
-  return body as T
+  return {
+    id: row.id,
+    name: row.name,
+    startDate: row.start_date.slice(0, 10),
+    endDate: row.end_date.slice(0, 10),
+    status: row.status,
+  }
 }
 
 export async function listAcademicYears(): Promise<AcademicYear[]> {
-  const body = await request<{ data: ApiAcademicYear[] }>(BASE_URL)
-  return body.data.map(fromApi)
+  const { data } = await apiClient.get<{ data: ApiAcademicYear[] }>(BASE_URL)
+  return data.data.map(fromApi)
 }
 
 export async function createAcademicYear(payload: Omit<AcademicYear, 'id' | 'status'> & { status?: AcademicYearStatus }): Promise<AcademicYear> {
-  const body = await request<{ data: ApiAcademicYear }>(BASE_URL, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: payload.name, start_date: payload.startDate, end_date: payload.endDate, status: payload.status }),
+  const { data } = await apiClient.post<{ data: ApiAcademicYear }>(BASE_URL, {
+    name: payload.name, start_date: payload.startDate, end_date: payload.endDate, status: payload.status,
   })
-  return fromApi(body.data)
+  return fromApi(data.data)
 }
 
 export async function updateAcademicYear(id: number, payload: Partial<Omit<AcademicYear, 'id'>>): Promise<AcademicYear> {
-  const body = await request<{ data: ApiAcademicYear }>(`${BASE_URL}/${id}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: payload.name, start_date: payload.startDate, end_date: payload.endDate, status: payload.status }),
+  const { data } = await apiClient.put<{ data: ApiAcademicYear }>(`${BASE_URL}/${id}`, {
+    name: payload.name, start_date: payload.startDate, end_date: payload.endDate, status: payload.status,
   })
-  return fromApi(body.data)
+  return fromApi(data.data)
 }
 
 export async function deleteAcademicYear(id: number): Promise<void> {
-  await request(`${BASE_URL}/${id}`, { method: 'DELETE' })
+  await apiClient.delete(`${BASE_URL}/${id}`)
 }

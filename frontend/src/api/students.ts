@@ -71,10 +71,10 @@ function fromApi(row: ApiStudent): Student {
     phone: row.phone ?? '',
     departmentId: row.department_id,
     gender: (row.gender ?? 'male') as Student['gender'],
-    dateOfBirth: row.date_of_birth ?? '',
+    dateOfBirth: row.date_of_birth?.slice(0, 10) ?? '',
     address: row.address ?? '',
     status: row.status,
-    enrolledAt: row.enrolled_at ?? '',
+    enrolledAt: row.enrolled_at?.slice(0, 10) ?? '',
   }
 }
 

@@ -1,4 +1,4 @@
-export type EnrollmentStatus = 'enrolled' | 'dropped'
+export type EnrollmentStatus = 'enrolled' | 'dropped' | 'completed'
 
 import { apiClient } from './client'
 

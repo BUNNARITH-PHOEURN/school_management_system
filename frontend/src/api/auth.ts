@@ -1,6 +1,6 @@
 import { apiClient } from './client'
 
-export type Role = 'admin' | 'moderator'
+export type Role = 'admin' | 'moderator' | 'student'
 
 export interface SessionUser {
   id: number
@@ -13,6 +13,17 @@ export interface SessionUser {
   bio?: string
   createdAt?: string | null
   avatarUrl?: string
+  studentId?: number
+}
+
+export interface StudentRegistration {
+  studentCode?: string
+  departmentId?: number | null
+  dateOfBirth?: string
+  gender?: string
+  phone?: string
+  address?: string
+  photo?: string
 }
 
 export async function login(email: string, password: string): Promise<SessionUser> {
@@ -20,8 +31,23 @@ export async function login(email: string, password: string): Promise<SessionUse
   return data.user
 }
 
-export async function register(name: string, email: string, password: string): Promise<SessionUser> {
-  const { data } = await apiClient.post<{ user: SessionUser }>('/auth/register', { name, email, password })
+export async function register(
+  name: string,
+  email: string,
+  password: string,
+  student?: StudentRegistration,
+): Promise<SessionUser> {
+  const payload: Record<string, unknown> = { name, email, password }
+  if (student) {
+    if (student.studentCode) payload.student_code = student.studentCode
+    payload.department_id = student.departmentId ?? null
+    if (student.dateOfBirth) payload.date_of_birth = student.dateOfBirth
+    if (student.gender) payload.gender = student.gender
+    if (student.phone) payload.phone = student.phone
+    if (student.address) payload.address = student.address
+    if (student.photo) payload.photo = student.photo
+  }
+  const { data } = await apiClient.post<{ user: SessionUser }>('/auth/register', payload)
   return data.user
 }
 
@@ -41,8 +67,5 @@ export async function updatePassword(current: string, next: string): Promise<voi
 
 export async function deactivateAccount(): Promise<void> {
   await apiClient.delete('/auth/me')
-}
-function handleResponse<T>(res: Response) {
-  throw new Error('Function not implemented.')
 }
 
