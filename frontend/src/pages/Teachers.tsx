@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { departments, getDepartmentName, type Status } from '../data/mockData'
+import { getDepartmentName, type Status } from '../data/mockData'
 import { createTeacher, listTeachers, updateTeacher, type Teacher } from '../api/teachers'
+import { listDepartments, type DepartmentRecord } from '../api/departments'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
 import Pagination from '../components/Pagination'
@@ -12,6 +13,7 @@ const PAGE_SIZE = 7
 export default function Teachers() {
   const { toast } = useToast()
   const [data, setData] = useState<Teacher[]>([])
+  const [departments, setDepartments] = useState<DepartmentRecord[]>([])
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | Status>('all')
@@ -31,6 +33,7 @@ export default function Teachers() {
     (filterDept === 'all' || t.departmentId === filterDept) &&
     `${t.firstName} ${t.lastName} ${t.code} ${t.email} ${t.specialization}`.toLowerCase().includes(search.toLowerCase())
   )
+  const departmentName = (id: number) => departments.find(d => d.id === id)?.name ?? getDepartmentName(id)
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
@@ -45,8 +48,19 @@ export default function Teachers() {
     setForm({ firstName: t.firstName, lastName: t.lastName, email: t.email, phone: t.phone, departmentId: t.departmentId, gender: t.gender, specialization: t.specialization })
     setModalOpen(true)
   }
-  useEffect(() => { listTeachers().then(setData).catch(err => setError(err instanceof Error ? err.message : 'Unable to load teachers')) }, [])
+  useEffect(() => {
+    Promise.all([listTeachers(), listDepartments()])
+      .then(([teacherRows, departmentBody]) => {
+        setData(teacherRows)
+        setDepartments(departmentBody.departments)
+      })
+      .catch(err => setError(err instanceof Error ? err.message : 'Unable to load teachers'))
+  }, [])
   const handleSave = async () => {
+    if (!form.departmentId || !departments.some(d => d.id === form.departmentId)) {
+      setError('Please create and select a valid department before adding a teacher.')
+      return
+    }
     try {
       const saved = editing
         ? await updateTeacher(editing.id, form)
@@ -127,7 +141,7 @@ export default function Teachers() {
                     </div>
                   </td>
                   <td className="px-4 py-3.5 font-mono text-xs whitespace-nowrap" style={{ color: '#6b7280' }}>{t.code}</td>
-                  <td className="px-4 py-3.5 text-xs whitespace-nowrap" style={{ color: '#374151' }}>{getDepartmentName(t.departmentId)}</td>
+                  <td className="px-4 py-3.5 text-xs whitespace-nowrap" style={{ color: '#374151' }}>{departmentName(t.departmentId)}</td>
                   <td className="px-4 py-3.5 text-xs max-w-36 truncate" style={{ color: '#6b7280' }}>{t.specialization}</td>
                   <td className="px-4 py-3.5 text-xs whitespace-nowrap" style={{ color: '#6b7280' }}>{t.phone}</td>
                   <td className="px-4 py-3.5 text-xs whitespace-nowrap" style={{ color: '#6b7280' }}>{t.joinedAt}</td>

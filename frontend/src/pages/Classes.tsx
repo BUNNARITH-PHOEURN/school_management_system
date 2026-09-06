@@ -1,26 +1,57 @@
 import { useEffect, useState } from 'react'
-import { subjects, academicYears, teachers, getSubjectName, getAcademicYearName, getTeacherName } from '../data/mockData'
+import { listAcademicYears, type AcademicYear } from '../api/academicYears'
+import { listTeachers, type Teacher } from '../api/teachers'
+import { listSubjects, type Subject } from '../api/subjects'
 import { createClass, listClasses, updateClass, type Class } from '../api/classes'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle } from '../components/Modal'
 
 export default function Classes() {
   const [data, setData] = useState<Class[]>([])
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [teachers, setTeachers] = useState<Teacher[]>([])
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Class | null>(null)
-  const [form, setForm] = useState({ name: '', academicYearId: 2, subjectId: 1, room: '', day: '', startTime: '', endTime: '', teacherIds: [1] as number[] })
+  const [form, setForm] = useState({ name: '', academicYearId: 0, subjectId: 0, room: '', day: '', startTime: '', endTime: '', teacherIds: [] as number[] })
+
+  const subjectName = (id: number) => subjects.find(subject => subject.id === id)?.name ?? 'Unknown subject'
+  const academicYearName = (id: number) => academicYears.find(year => year.id === id)?.name ?? 'Unknown academic year'
+  const teacherName = (id: number) => {
+    const teacher = teachers.find(item => item.id === id)
+    return teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unassigned'
+  }
 
   const filtered = data.filter(c =>
     (filterStatus === 'all' || c.status === filterStatus) &&
-    `${c.name} ${c.room} ${getSubjectName(c.subjectId)}`.toLowerCase().includes(search.toLowerCase())
+    `${c.name} ${c.room} ${subjectName(c.subjectId)}`.toLowerCase().includes(search.toLowerCase())
   )
 
-  const openCreate = () => { setEditing(null); setForm({ name: '', academicYearId: 2, subjectId: 1, room: '', day: '', startTime: '08:00', endTime: '09:30', teacherIds: [1] }); setModalOpen(true) }
+  const openCreate = () => {
+    setEditing(null)
+    setForm({
+      name: '',
+      academicYearId: academicYears.find(year => year.status === 'active')?.id ?? academicYears[0]?.id ?? 0,
+      subjectId: subjects.find(subject => subject.status === 'active')?.id ?? subjects[0]?.id ?? 0,
+      room: '', day: '', startTime: '08:00', endTime: '09:30',
+      teacherIds: teachers.filter(teacher => teacher.status === 'active').slice(0, 1).map(teacher => teacher.id),
+    })
+    setModalOpen(true)
+  }
   const openEdit = (c: Class) => { setEditing(c); setForm({ name: c.name, academicYearId: c.academicYearId, subjectId: c.subjectId, room: c.room, day: c.day, startTime: c.startTime, endTime: c.endTime, teacherIds: c.teacherIds }); setModalOpen(true) }
-  useEffect(() => { listClasses().then(setData).catch(err => setError(err instanceof Error ? err.message : 'Unable to load classes')) }, [])
+  useEffect(() => {
+    Promise.all([listClasses(), listAcademicYears(), listSubjects(), listTeachers()])
+      .then(([classes, years, subjectRows, teacherRows]) => {
+        setData(classes)
+        setAcademicYears(years)
+        setSubjects(subjectRows)
+        setTeachers(teacherRows)
+      })
+      .catch(err => setError(err instanceof Error ? err.message : 'Unable to load classes'))
+  }, [])
   const handleSave = async () => {
     try {
       const payload = { ...form, status: editing?.status ?? 'active' as const }
@@ -75,12 +106,12 @@ export default function Classes() {
             </div>
             <div className="grid grid-cols-2 gap-3 mb-4">
               {[
-                { label: 'Subject', val: getSubjectName(cls.subjectId) },
-                { label: 'Academic Year', val: getAcademicYearName(cls.academicYearId) },
+                { label: 'Subject', val: subjectName(cls.subjectId) },
+                { label: 'Academic Year', val: academicYearName(cls.academicYearId) },
                 { label: 'Room', val: cls.room },
                 { label: 'Schedule', val: cls.day },
                 { label: 'Time', val: `${cls.startTime} – ${cls.endTime}` },
-                { label: 'Teachers', val: cls.teacherIds.map(id => getTeacherName(id)).join(', ') },
+                { label: 'Teachers', val: cls.teacherIds.map(teacherName).join(', ') || 'Unassigned' },
               ].map(({ label, val }) => (
                 <div key={label}>
                   <div className="text-xs mb-0.5" style={{ color: '#9ca3af' }}>{label}</div>
@@ -108,8 +139,14 @@ export default function Classes() {
       >
         <FormField label="Class Name" required><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputClass} style={inputStyle} placeholder="e.g. Algebra I — Section A" /></FormField>
         <div className="grid grid-cols-2 gap-x-4">
-          <FormField label="Academic Year"><select value={form.academicYearId} onChange={e => setForm(f => ({ ...f, academicYearId: Number(e.target.value) }))} className={inputClass} style={inputStyle}>{academicYears.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></FormField>
-          <FormField label="Subject"><select value={form.subjectId} onChange={e => setForm(f => ({ ...f, subjectId: Number(e.target.value) }))} className={inputClass} style={inputStyle}>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></FormField>
+          <FormField label="Academic Year"><select value={form.academicYearId || ''} onChange={e => setForm(f => ({ ...f, academicYearId: Number(e.target.value) }))} className={inputClass} style={inputStyle}>
+            <option value="">Select academic year</option>
+            {academicYears.filter(year => year.status === 'active').map(year => <option key={year.id} value={year.id}>{year.name}</option>)}
+          </select></FormField>
+          <FormField label="Subject"><select value={form.subjectId || ''} onChange={e => setForm(f => ({ ...f, subjectId: Number(e.target.value) }))} className={inputClass} style={inputStyle}>
+            <option value="">Select subject</option>
+            {subjects.filter(subject => subject.status === 'active').map(subject => <option key={subject.id} value={subject.id}>{subject.code} - {subject.name}</option>)}
+          </select></FormField>
         </div>
         <div className="grid grid-cols-2 gap-x-4">
           <FormField label="Room"><input value={form.room} onChange={e => setForm(f => ({ ...f, room: e.target.value }))} className={inputClass} style={inputStyle} /></FormField>
@@ -121,7 +158,8 @@ export default function Classes() {
         </div>
         <FormField label="Assign Teacher">
           <select value={form.teacherIds[0]} onChange={e => setForm(f => ({ ...f, teacherIds: [Number(e.target.value)] }))} className={inputClass} style={inputStyle}>
-            {teachers.filter(t => t.status === 'active').map(t => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
+            <option value="">Unassigned</option>
+            {teachers.filter(teacher => teacher.status === 'active').map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName}</option>)}
           </select>
         </FormField>
       </Modal>

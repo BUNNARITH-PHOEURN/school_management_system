@@ -1,6 +1,6 @@
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'permission'
 
-import { authHeaders } from './session'
+import { apiClient } from './client'
 
 export interface AttendanceRecord {
   id: number
@@ -11,7 +11,7 @@ export interface AttendanceRecord {
   remarks: string
 }
 
-const BASE_URL = '/api/attendance'
+const BASE_URL = '/attendance'
 
 export type AttendanceWithNames = AttendanceRecord & {
   studentName: string
@@ -54,27 +54,13 @@ function fromApi(row: ApiAttendance): AttendanceWithNames {
   }
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  const body = await res.json().catch(() => null)
-  if (!res.ok) {
-    const message =
-      body && Array.isArray(body.errors)
-        ? body.errors.join(', ')
-        : body?.error || `Request failed (${res.status})`
-    throw new Error(message)
-  }
-  return body as T
-}
-
 export async function listAttendance(classId?: number, date?: string): Promise<AttendanceWithNames[]> {
-  const params = new URLSearchParams()
-  if (classId !== undefined) params.set('class_id', String(classId))
-  if (date) params.set('date', date)
-  const qs = params.toString()
+  const params: Record<string, string> = {}
+  if (classId !== undefined) params.class_id = String(classId)
+  if (date) params.date = date
 
-  const res = await fetch(qs ? `${BASE_URL}?${qs}` : BASE_URL)
-  const rows = await handleResponse<ApiAttendance[]>(res)
-  return rows.map(fromApi)
+  const { data } = await apiClient.get<ApiAttendance[]>(BASE_URL, { params })
+  return data.map(fromApi)
 }
 
 export async function createAttendance(payload: {
@@ -84,18 +70,14 @@ export async function createAttendance(payload: {
   status: AttendanceStatus
   remarks?: string
 }): Promise<AttendanceWithNames> {
-  const res = await fetch(BASE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({
-      student_id: payload.studentId,
-      class_id: payload.classId,
-      date: payload.date,
-      status: payload.status,
-      remarks: payload.remarks ?? '',
-    }),
+  const { data } = await apiClient.post<ApiAttendance>(BASE_URL, {
+    student_id: payload.studentId,
+    class_id: payload.classId,
+    date: payload.date,
+    status: payload.status,
+    remarks: payload.remarks ?? '',
   })
-  return fromApi(await handleResponse<ApiAttendance>(res))
+  return fromApi(data)
 }
 
 export async function saveAttendance(
@@ -107,35 +89,23 @@ export async function saveAttendance(
     remarks: string
   }[],
 ): Promise<void> {
-  const res = await fetch(`${BASE_URL}/batch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(
-      records.map((r) => ({
-        student_id: r.studentId,
-        class_id: r.classId,
-        date: r.date,
-        status: r.status,
-        remarks: r.remarks,
-      })),
-    ),
-  })
-  await handleResponse<{ message: string }>(res)
+  await apiClient.post(`${BASE_URL}/batch`, records.map((r) => ({
+    student_id: r.studentId,
+    class_id: r.classId,
+    date: r.date,
+    status: r.status,
+    remarks: r.remarks,
+  })))
 }
 
 export async function updateAttendance(
   id: number,
   payload: { status?: AttendanceStatus; remarks?: string },
 ): Promise<AttendanceWithNames> {
-  const res = await fetch(`${BASE_URL}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(payload),
-  })
-  return fromApi(await handleResponse<ApiAttendance>(res))
+  const { data } = await apiClient.put<ApiAttendance>(`${BASE_URL}/${id}`, payload)
+  return fromApi(data)
 }
 
 export async function deleteAttendance(id: number): Promise<void> {
-  const res = await fetch(`${BASE_URL}/${id}`, { method: 'DELETE', headers: authHeaders() })
-  await handleResponse<{ message: string }>(res)
+  await apiClient.delete(`${BASE_URL}/${id}`)
 }

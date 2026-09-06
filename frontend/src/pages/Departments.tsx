@@ -1,43 +1,41 @@
-import { useState } from 'react'
-import { departments as initial, students, teachers, type Department } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import { createDepartment, listDepartments, updateDepartment, updateDepartmentStatus, type DepartmentRecord } from '../api/departments'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
 import { useToast } from '../context/ToastContext'
 import { EmptyState } from '../components/Skeleton'
+import { getApiError } from '../api/client'
 
 export default function Departments() {
   const { toast } = useToast()
-  const [data, setData] = useState(initial)
+  const [data, setData] = useState<DepartmentRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<Department | null>(null)
+  const [editing, setEditing] = useState<DepartmentRecord | null>(null)
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [form, setForm] = useState({ name: '', code: '', description: '' })
+
+  useEffect(() => { listDepartments().then(result => setData(result.departments)).catch(err => setError(err instanceof Error ? err.message : 'Unable to load departments')).finally(() => setLoading(false)) }, [])
 
   const filtered = data.filter(d => `${d.name} ${d.code} ${d.description}`.toLowerCase().includes(search.toLowerCase()))
 
   const openCreate = () => { setEditing(null); setForm({ name: '', code: '', description: '' }); setModalOpen(true) }
-  const openEdit = (d: Department) => { setEditing(d); setForm({ name: d.name, code: d.code, description: d.description }); setModalOpen(true) }
-  const handleSave = () => {
-    if (editing) {
-      setData(prev => prev.map(d => d.id === editing.id ? { ...d, ...form } : d))
-      toast('success', 'Department updated.')
-    } else {
-      setData(prev => [...prev, { id: Math.max(...prev.map(d => d.id)) + 1, ...form, status: 'active' as const, createdAt: new Date().toISOString().slice(0, 10) }])
-      toast('success', 'Department created.')
-    }
-    setModalOpen(false)
+  const openEdit = (d: DepartmentRecord) => { setEditing(d); setForm({ name: d.name, code: d.code, description: d.description || '' }); setModalOpen(true) }
+  const handleSave = async () => {
+    try {
+      const result = editing ? await updateDepartment(editing.id, form) : await createDepartment(form)
+      setData(prev => editing ? prev.map(d => d.id === result.department.id ? { ...d, ...result.department } : d) : [...prev, { ...result.department, student_count: 0, teacher_count: 0 }])
+      toast('success', editing ? 'Department updated.' : 'Department created.')
+      setModalOpen(false)
+    } catch (err) { setError(getApiError(err, 'Unable to save department')) }
   }
-  const toggleStatus = (id: number) => {
+  const toggleStatus = async (id: number) => {
     const d = data.find(x => x.id === id)
     const next = d?.status === 'active' ? 'inactive' : 'active'
-    setData(prev => prev.map(x => x.id === id ? { ...x, status: next } : x))
-    toast(next === 'active' ? 'success' : 'info', `Department ${next}.`)
-    setConfirmId(null)
+    try { const result = await updateDepartmentStatus(id, next); setData(prev => prev.map(x => x.id === id ? { ...x, ...result.department } : x)); toast(next === 'active' ? 'success' : 'info', `Department ${next}.`); setConfirmId(null) } catch (err) { setError(getApiError(err, 'Unable to update status')) }
   }
-
-  const getStudentCount = (id: number) => students.filter(s => s.departmentId === id && s.status === 'active').length
-  const getTeacherCount = (id: number) => teachers.filter(t => t.departmentId === id && t.status === 'active').length
 
   return (
     <div className="p-6 space-y-5">
@@ -51,6 +49,7 @@ export default function Departments() {
           Add Department
         </button>
       </div>
+      {error && <div className="px-3 py-2 rounded-lg text-sm" style={{ backgroundColor: '#fff1f2', color: '#9f1239' }}>{error}</div>}
 
       <div className="bg-white rounded-xl border p-3.5" style={{ borderColor: '#e2e7f0' }}>
         <div className="relative">
@@ -59,7 +58,7 @@ export default function Departments() {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? <div className="bg-white rounded-xl border p-8 text-center text-sm text-gray-400" style={{ borderColor: '#e2e7f0' }}>Loading departments...</div> : filtered.length === 0 ? (
         <div className="bg-white rounded-xl border" style={{ borderColor: '#e2e7f0' }}>
           <EmptyState icon="🏫" title="No departments found" description="Try a different search term." />
         </div>
@@ -82,13 +81,13 @@ export default function Departments() {
                   <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: '#eff2ff' }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3b5bdb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z M6 12v5c3 3 9 3 12 0v-5" /></svg>
                   </div>
-                  <span style={{ color: '#374151' }}><strong>{getStudentCount(dept.id)}</strong> students</span>
+                  <span style={{ color: '#374151' }}><strong>{dept.student_count}</strong> students</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: '#d1fae5' }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2z" /></svg>
                   </div>
-                  <span style={{ color: '#374151' }}><strong>{getTeacherCount(dept.id)}</strong> teachers</span>
+                  <span style={{ color: '#374151' }}><strong>{dept.teacher_count}</strong> teachers</span>
                 </div>
               </div>
 
@@ -97,7 +96,7 @@ export default function Departments() {
                 <button onClick={() => setConfirmId(dept.id)} className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors" style={{ borderColor: dept.status === 'active' ? '#fca5a5' : '#d1fae5', color: dept.status === 'active' ? '#e11d48' : '#059669' }}>
                   {dept.status === 'active' ? 'Deactivate' : 'Activate'}
                 </button>
-                <span className="text-xs ml-auto" style={{ color: '#9ca3af' }}>{dept.createdAt}</span>
+                <span className="text-xs ml-auto" style={{ color: '#9ca3af' }}>{dept.created_at?.slice(0, 10)}</span>
               </div>
             </div>
           ))}

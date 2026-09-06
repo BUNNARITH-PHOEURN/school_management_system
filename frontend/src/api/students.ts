@@ -1,5 +1,7 @@
 export type Status = 'active' | 'inactive'
 
+import { apiClient } from './client'
+
 export interface Student {
   id: number
   code: string
@@ -7,7 +9,7 @@ export interface Student {
   lastName: string
   email: string
   phone: string
-  departmentId: number
+  departmentId: number | null
   gender: 'male' | 'female'
   dateOfBirth: string
   address: string
@@ -16,7 +18,7 @@ export interface Student {
   enrolledAt: string
 }
 
-const BASE_URL = '/api/students'
+const BASE_URL = '/students'
 
 type ApiStudent = {
   id: number
@@ -38,7 +40,7 @@ export type StudentPayload = Partial<{
   lastName: string
   email: string
   phone: string
-  departmentId: number
+  departmentId: number | null
   gender: string
   dateOfBirth: string
   address: string
@@ -67,7 +69,7 @@ function fromApi(row: ApiStudent): Student {
     lastName: row.last_name,
     email: row.email,
     phone: row.phone ?? '',
-    departmentId: row.department_id ?? 1,
+    departmentId: row.department_id,
     gender: (row.gender ?? 'male') as Student['gender'],
     dateOfBirth: row.date_of_birth ?? '',
     address: row.address ?? '',
@@ -76,46 +78,24 @@ function fromApi(row: ApiStudent): Student {
   }
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  const body = await res.json().catch(() => null)
-  if (!res.ok) {
-    const message =
-      body && Array.isArray(body.errors)
-        ? body.errors.join(', ')
-        : body?.error || `Request failed (${res.status})`
-    throw new Error(message)
-  }
-  return body as T
-}
-
 export async function listStudents(): Promise<Student[]> {
-  const res = await fetch(BASE_URL)
-  const rows = await handleResponse<ApiStudent[]>(res)
-  return rows.map(fromApi)
+  const { data } = await apiClient.get<ApiStudent[]>(BASE_URL)
+  return data.map(fromApi)
 }
 
 export async function createStudent(payload: StudentPayload): Promise<Student> {
-  const res = await fetch(BASE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toApiPayload(payload)),
-  })
-  return fromApi(await handleResponse<ApiStudent>(res))
+  const { data } = await apiClient.post<ApiStudent>(BASE_URL, toApiPayload(payload))
+  return fromApi(data)
 }
 
 export async function updateStudent(
   id: number,
   payload: StudentPayload,
 ): Promise<Student> {
-  const res = await fetch(`${BASE_URL}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toApiPayload(payload)),
-  })
-  return fromApi(await handleResponse<ApiStudent>(res))
+  const { data } = await apiClient.put<ApiStudent>(`${BASE_URL}/${id}`, toApiPayload(payload))
+  return fromApi(data)
 }
 
 export async function deleteStudent(id: number): Promise<void> {
-  const res = await fetch(`${BASE_URL}/${id}`, { method: 'DELETE' })
-  await handleResponse<{ message: string }>(res)
+  await apiClient.delete(`${BASE_URL}/${id}`)
 }

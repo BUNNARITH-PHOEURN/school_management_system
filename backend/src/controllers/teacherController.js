@@ -106,8 +106,18 @@ exports.createTeacher = asyncHandler(async (req, res) => {
   const { errors, data } = validateTeacher(req.body || {});
   if (errors.length > 0) return res.status(400).json({ errors });
 
-  const teacher = await teacherModel.createTeacher(data);
-  res.status(201).json(teacher);
+  try {
+    const teacher = await teacherModel.createTeacher(data);
+    res.status(201).json(teacher);
+  } catch (error) {
+    if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+      return res.status(400).json({ error: 'Selected department does not exist. Create a department first.' });
+    }
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'A teacher with this email or code already exists.' });
+    }
+    throw error;
+  }
 });
 
 exports.updateTeacher = asyncHandler(async (req, res) => {

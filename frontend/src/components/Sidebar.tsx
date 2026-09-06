@@ -139,9 +139,11 @@ export default function Sidebar({ user, currentPage, onNavigate, collapsed, mobi
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.06)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = currentPage === 'profile' ? 'rgba(59,91,219,0.22)' : 'transparent' }}
         >
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ backgroundColor: '#3b5bdb', color: 'white', fontFamily: 'Outfit, sans-serif' }}>
-            {initials}
-          </div>
+          {user.avatarUrl ? <img src={user.avatarUrl} alt="Profile" className="w-8 h-8 rounded-full object-cover flex-shrink-0" /> : (
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ backgroundColor: '#3b5bdb', color: 'white', fontFamily: 'Outfit, sans-serif' }}>
+              {initials}
+            </div>
+          )}
           {!collapsed && (
             <div className="text-left overflow-hidden">
               <div className="text-sm font-medium text-white truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>{user.name}</div>
