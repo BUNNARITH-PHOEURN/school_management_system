@@ -87,6 +87,55 @@ describe('POST /api/auth/login', () => {
   });
 });
 
+describe('POST /api/auth/register', () => {
+  test('creates an active moderator account without returning its password hash', async () => {
+    query.mockResolvedValueOnce([]);
+    query.mockResolvedValueOnce({ insertId: 7 });
+
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'New User', email: 'NEW@school.edu', password: 'password1' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.user).toEqual({
+      id: 7,
+      name: 'New User',
+      email: 'new@school.edu',
+      role: 'moderator',
+      status: 'active',
+      lastLogin: null,
+    });
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining('INSERT INTO users'),
+      ['New User', 'new@school.edu', hashPassword('password1')],
+    );
+  });
+
+  test('rejects a duplicate email', async () => {
+    query.mockResolvedValueOnce([userRow]);
+
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'New User', email: 'admin@school.edu', password: 'password1' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('An account with this email already exists');
+  });
+
+  test('validates registration fields', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'A', email: 'bad-email', password: 'short' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual([
+      'name must be at least 2 characters',
+      'a valid email is required',
+      'password must be at least 8 characters',
+    ]);
+  });
+});
+
 describe('GET /api/auth/me', () => {
   test('returns 200 and the user when x-user-id is valid', async () => {
     query.mockResolvedValue([userRow]);

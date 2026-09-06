@@ -58,8 +58,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export async function listClasses(): Promise<Class[]> {
   const res = await fetch(BASE_URL)
-  const rows = await handleResponse<ApiClass[]>(res)
-  return rows.map(fromApi)
+  const body = await handleResponse<{ data: ApiClass[] }>(res)
+  return body.data.map(fromApi)
 }
 
 export async function listMyClasses(): Promise<Class[]> {
@@ -73,22 +73,22 @@ export async function getClass(id: number): Promise<Class> {
   return fromApi(await handleResponse<ApiClass>(res))
 }
 
-export async function createClass(payload: { name: string; status?: string }): Promise<Class> {
+export async function createClass(payload: Omit<Class, 'id'>): Promise<Class> {
   const res = await fetch(BASE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ name: payload.name, academic_year_id: payload.academicYearId, subject_id: payload.subjectId, room: payload.room, day: payload.day, start_time: payload.startTime, end_time: payload.endTime, status: payload.status }),
   })
-  return fromApi(await handleResponse<ApiClass>(res))
+  return fromApi((await handleResponse<{ data: ApiClass }>(res)).data)
 }
 
-export async function updateClass(id: number, payload: Record<string, unknown>): Promise<Class> {
+export async function updateClass(id: number, payload: Partial<Class>): Promise<Class> {
   const res = await fetch(`${BASE_URL}/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ name: payload.name, academic_year_id: payload.academicYearId, subject_id: payload.subjectId, room: payload.room, day: payload.day, start_time: payload.startTime, end_time: payload.endTime, status: payload.status }),
   })
-  return fromApi(await handleResponse<ApiClass>(res))
+  return fromApi((await handleResponse<{ data: ApiClass }>(res)).data)
 }
 
 export async function deleteClass(id: number): Promise<void> {

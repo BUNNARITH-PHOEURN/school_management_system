@@ -15,6 +15,39 @@ function toSessionUser(row) {
   };
 }
 
+function validateRegistration({ name, email, password }) {
+  const errors = [];
+  if (typeof name !== 'string' || name.trim().length < 2) errors.push('name must be at least 2 characters');
+  if (typeof email !== 'string' || !/^\S+@\S+\.\S+$/.test(email.trim())) errors.push('a valid email is required');
+  if (typeof password !== 'string' || password.length < 8) errors.push('password must be at least 8 characters');
+  return errors;
+}
+
+exports.register = asyncHandler(async (req, res) => {
+  const { name, email, password } = req.body || {};
+  const errors = validateRegistration({ name, email, password });
+  if (errors.length) return res.status(400).json({ errors });
+
+  const normalizedEmail = email.trim().toLowerCase();
+  if (await userModel.findByEmail(normalizedEmail)) {
+    return res.status(409).json({ error: 'An account with this email already exists' });
+  }
+
+  try {
+    const user = await userModel.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      passwordHash: hashPassword(password),
+    });
+    return res.status(201).json({ user: toSessionUser(user) });
+  } catch (error) {
+    if (error && error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'An account with this email already exists' });
+    }
+    throw error;
+  }
+});
+
 exports.login = asyncHandler(async (req, res) => {
   const { email, password } = req.body || {};
 

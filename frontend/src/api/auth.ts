@@ -33,6 +33,16 @@ export async function login(email: string, password: string): Promise<SessionUse
   return body.user
 }
 
+export async function register(name: string, email: string, password: string): Promise<SessionUser> {
+  const res = await fetch(`${BASE_URL}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password }),
+  })
+  const body = await handleResponse<{ user: SessionUser }>(res)
+  return body.user
+}
+
 export async function checkSession(userId: number): Promise<SessionUser> {
   const res = await fetch(`${BASE_URL}/me`, {
     headers: { 'x-user-id': String(userId) },

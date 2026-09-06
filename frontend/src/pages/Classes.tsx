@@ -1,10 +1,12 @@
-import { useState } from 'react'
-import { classes as initial, subjects, academicYears, teachers, getSubjectName, getAcademicYearName, getTeacherName, type Class } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import { subjects, academicYears, teachers, getSubjectName, getAcademicYearName, getTeacherName } from '../data/mockData'
+import { createClass, listClasses, updateClass, type Class } from '../api/classes'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle } from '../components/Modal'
 
 export default function Classes() {
-  const [data, setData] = useState(initial)
+  const [data, setData] = useState<Class[]>([])
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
   const [modalOpen, setModalOpen] = useState(false)
@@ -18,12 +20,23 @@ export default function Classes() {
 
   const openCreate = () => { setEditing(null); setForm({ name: '', academicYearId: 2, subjectId: 1, room: '', day: '', startTime: '08:00', endTime: '09:30', teacherIds: [1] }); setModalOpen(true) }
   const openEdit = (c: Class) => { setEditing(c); setForm({ name: c.name, academicYearId: c.academicYearId, subjectId: c.subjectId, room: c.room, day: c.day, startTime: c.startTime, endTime: c.endTime, teacherIds: c.teacherIds }); setModalOpen(true) }
-  const handleSave = () => {
-    if (editing) setData(prev => prev.map(c => c.id === editing.id ? { ...c, ...form } : c))
-    else setData(prev => [...prev, { id: Math.max(...prev.map(c => c.id)) + 1, ...form, status: 'active' as const }])
-    setModalOpen(false)
+  useEffect(() => { listClasses().then(setData).catch(err => setError(err instanceof Error ? err.message : 'Unable to load classes')) }, [])
+  const handleSave = async () => {
+    try {
+      const payload = { ...form, status: editing?.status ?? 'active' as const }
+      const saved = editing ? await updateClass(editing.id, payload) : await createClass(payload)
+      setData(prev => editing ? prev.map(c => c.id === saved.id ? saved : c) : [...prev, saved])
+      setModalOpen(false)
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save class') }
   }
-  const toggleStatus = (id: number) => setData(prev => prev.map(c => c.id === id ? { ...c, status: c.status === 'active' ? 'inactive' : 'active' } : c))
+  const toggleStatus = async (id: number) => {
+    const current = data.find(c => c.id === id)
+    if (!current) return
+    try {
+      const saved = await updateClass(id, { status: current.status === 'active' ? 'inactive' : 'active' })
+      setData(prev => prev.map(c => c.id === id ? saved : c))
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to update class') }
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -48,6 +61,7 @@ export default function Classes() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
+        {error && <div className="col-span-2 rounded-lg p-3 text-sm" style={{ backgroundColor: '#fff1f2', color: '#9f1239' }}>{error}</div>}
         {filtered.length === 0 ? (
           <div className="col-span-2 text-center py-16" style={{ color: '#9ca3af' }}>
             <div className="text-3xl mb-2">📅</div>

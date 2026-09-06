@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { teachers as initialTeachers, departments, getDepartmentName, type Teacher, type Status } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import { departments, getDepartmentName, type Status } from '../data/mockData'
+import { createTeacher, listTeachers, updateTeacher, type Teacher } from '../api/teachers'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
 import Pagination from '../components/Pagination'
@@ -10,7 +11,8 @@ const PAGE_SIZE = 7
 
 export default function Teachers() {
   const { toast } = useToast()
-  const [data, setData] = useState(initialTeachers)
+  const [data, setData] = useState<Teacher[]>([])
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | Status>('all')
   const [filterDept, setFilterDept] = useState<number | 'all'>('all')
@@ -21,7 +23,7 @@ export default function Teachers() {
   const [viewTeacher, setViewTeacher] = useState<Teacher | null>(null)
   const [form, setForm] = useState<{
     firstName: string; lastName: string; email: string; phone: string
-    departmentId: number; gender: 'male' | 'female'; specialization: string
+    departmentId: number; gender: 'male' | 'female' | 'other'; specialization: string
   }>({ firstName: '', lastName: '', email: '', phone: '', departmentId: 1, gender: 'male', specialization: '' })
 
   const filtered = data.filter(t =>
@@ -43,23 +45,27 @@ export default function Teachers() {
     setForm({ firstName: t.firstName, lastName: t.lastName, email: t.email, phone: t.phone, departmentId: t.departmentId, gender: t.gender, specialization: t.specialization })
     setModalOpen(true)
   }
-  const handleSave = () => {
-    if (editing) {
-      setData(prev => prev.map(t => t.id === editing.id ? { ...t, ...form } : t))
-      toast('success', 'Teacher record updated.')
-    } else {
-      const newId = Math.max(...data.map(t => t.id)) + 1
-      setData(prev => [...prev, { id: newId, code: `TCH-${String(newId).padStart(3, '0')}`, ...form, photo: undefined, status: 'active' as const, joinedAt: new Date().toISOString().slice(0, 10) }])
-      toast('success', 'Teacher added successfully.')
-    }
-    setModalOpen(false)
+  useEffect(() => { listTeachers().then(setData).catch(err => setError(err instanceof Error ? err.message : 'Unable to load teachers')) }, [])
+  const handleSave = async () => {
+    try {
+      const saved = editing
+        ? await updateTeacher(editing.id, form)
+        : await createTeacher({ ...form, status: 'active' })
+      setData(prev => editing ? prev.map(t => t.id === saved.id ? saved : t) : [saved, ...prev])
+      toast('success', editing ? 'Teacher record updated.' : 'Teacher added successfully.')
+      setModalOpen(false)
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save teacher') }
   }
-  const toggleStatus = (id: number) => {
+  const toggleStatus = async (id: number) => {
     const t = data.find(x => x.id === id)
     const next = t?.status === 'active' ? 'inactive' : 'active'
-    setData(prev => prev.map(x => x.id === id ? { ...x, status: next } : x))
-    toast(next === 'active' ? 'success' : 'info', `Teacher ${next === 'active' ? 'activated' : 'deactivated'}.`)
-    setConfirmId(null)
+    if (!t) return
+    try {
+      const saved = await updateTeacher(id, { status: next })
+      setData(prev => prev.map(x => x.id === id ? saved : x))
+      toast(next === 'active' ? 'success' : 'info', `Teacher ${next === 'active' ? 'activated' : 'deactivated'}.`)
+      setConfirmId(null)
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to update teacher') }
   }
 
   return (
@@ -78,6 +84,7 @@ export default function Teachers() {
       </div>
 
       <div className="bg-white rounded-xl border p-3.5 flex flex-wrap gap-3" style={{ borderColor: '#e2e7f0' }}>
+        {error && <div className="w-full rounded-lg p-3 text-sm" style={{ backgroundColor: '#fff1f2', color: '#9f1239' }}>{error}</div>}
         <div className="relative flex-1 min-w-48">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Search teachers…" className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0', color: '#1a1f36' }} />
@@ -157,7 +164,7 @@ export default function Teachers() {
         <FormField label="Email" required><input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className={inputClass} style={inputStyle} /></FormField>
         <div className="grid grid-cols-2 gap-x-4">
           <FormField label="Phone"><input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className={inputClass} style={inputStyle} /></FormField>
-          <FormField label="Gender"><select value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value as 'male' | 'female' }))} className={inputClass} style={inputStyle}><option value="male">Male</option><option value="female">Female</option></select></FormField>
+          <FormField label="Gender"><select value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value as 'male' | 'female' | 'other' }))} className={inputClass} style={inputStyle}><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></FormField>
         </div>
         <div className="grid grid-cols-2 gap-x-4">
           <FormField label="Department" required><select value={form.departmentId} onChange={e => setForm(f => ({ ...f, departmentId: Number(e.target.value) }))} className={inputClass} style={inputStyle}>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></FormField>

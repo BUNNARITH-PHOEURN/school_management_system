@@ -17,4 +17,21 @@ async function updateLastLogin(id, lastLogin) {
   await query('UPDATE users SET last_login = ? WHERE id = ?', [lastLogin, id]);
 }
 
-module.exports = { findByEmail, findById, updateLastLogin };
+async function create({ name, email, passwordHash }) {
+  const result = await query(
+    `INSERT INTO users (name, email, password_hash, role, status)
+     VALUES (?, ?, ?, 'moderator', 'active')`,
+    [name, email, passwordHash],
+  );
+
+  return {
+    id: result.insertId,
+    name,
+    email,
+    role: 'moderator',
+    status: 'active',
+    last_login: null,
+  };
+}
+
+module.exports = { findByEmail, findById, updateLastLogin, create };

@@ -1,14 +1,20 @@
 const express = require('express');
-const controller = require('../controllers/classController');
+const {
+    getAllClasses,
+    getClassById,
+    createClass,
+    updateClass,
+    deleteClass
+} = require('../controllers/classController');
 const { requireAuth } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-router.get('/', controller.getAllClasses);
-router.get('/mine', requireAuth, controller.getMyClasses);
-router.get('/:id', controller.getClassById);
-router.post('/', controller.createClass);
-router.put('/:id', controller.updateClass);
-router.delete('/:id', controller.deleteClass);
+router.get('/', getAllClasses);
+//router.get('/mine', requireAuth, getMyClasses);
+router.get('/:id', getClassById);
+router.post('/', createClass);
+router.put('/:id', updateClass);
+router.delete('/:id', deleteClass);
 
 module.exports = router;
