@@ -1,5 +1,7 @@
 export type EnrollmentStatus = 'enrolled' | 'dropped'
 
+import { apiClient } from './client'
+
 export interface Enrollment {
   id: number
   studentId: number
@@ -8,7 +10,7 @@ export interface Enrollment {
   status: EnrollmentStatus
 }
 
-const BASE_URL = '/api/enrollments'
+const BASE_URL = '/enrollments'
 
 export type EnrollmentWithNames = Enrollment & {
   studentName: string
@@ -49,52 +51,30 @@ function fromApi(row: ApiEnrollment): EnrollmentWithNames {
   }
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  const body = await res.json().catch(() => null)
-  if (!res.ok) {
-    const message =
-      body && Array.isArray(body.errors)
-        ? body.errors.join(', ')
-        : body?.error || `Request failed (${res.status})`
-    throw new Error(message)
-  }
-  return body as T
-}
-
 export async function listEnrollments(): Promise<EnrollmentWithNames[]> {
-  const res = await fetch(BASE_URL)
-  const rows = await handleResponse<ApiEnrollment[]>(res)
-  return rows.map(fromApi)
+  const { data } = await apiClient.get<ApiEnrollment[]>(BASE_URL)
+  return data.map(fromApi)
 }
 
 export async function createEnrollment(payload: {
   studentId: number
   classId: number
 }): Promise<EnrollmentWithNames> {
-  const res = await fetch(BASE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      student_id: payload.studentId,
-      class_id: payload.classId,
-    }),
+  const { data } = await apiClient.post<ApiEnrollment>(BASE_URL, {
+    student_id: payload.studentId,
+    class_id: payload.classId,
   })
-  return fromApi(await handleResponse<ApiEnrollment>(res))
+  return fromApi(data)
 }
 
 export async function updateEnrollment(
   id: number,
   status: EnrollmentStatus,
 ): Promise<EnrollmentWithNames> {
-  const res = await fetch(`${BASE_URL}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
-  })
-  return fromApi(await handleResponse<ApiEnrollment>(res))
+  const { data } = await apiClient.put<ApiEnrollment>(`${BASE_URL}/${id}`, { status })
+  return fromApi(data)
 }
 
 export async function deleteEnrollment(id: number): Promise<void> {
-  const res = await fetch(`${BASE_URL}/${id}`, { method: 'DELETE' })
-  await handleResponse<{ message: string }>(res)
+  await apiClient.delete(`${BASE_URL}/${id}`)
 }

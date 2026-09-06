@@ -1,6 +1,6 @@
 export type ClassStatus = 'active' | 'inactive'
 
-import { authHeaders } from './session'
+import { apiClient } from './client'
 
 export interface Class {
   id: number
@@ -15,7 +15,7 @@ export interface Class {
   teacherIds: number[]
 }
 
-const BASE_URL = '/api/classes'
+const BASE_URL = '/classes'
 
 type ApiClass = {
   id: number
@@ -44,54 +44,31 @@ function fromApi(row: ApiClass): Class {
   }
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  const body = await res.json().catch(() => null)
-  if (!res.ok) {
-    const message =
-      body && Array.isArray(body.errors)
-        ? body.errors.join(', ')
-        : body?.error || `Request failed (${res.status})`
-    throw new Error(message)
-  }
-  return body as T
-}
-
 export async function listClasses(): Promise<Class[]> {
-  const res = await fetch(BASE_URL)
-  const rows = await handleResponse<ApiClass[]>(res)
-  return rows.map(fromApi)
+  const { data } = await apiClient.get<ApiClass[]>(BASE_URL)
+  return data.map(fromApi)
 }
 
 export async function listMyClasses(): Promise<Class[]> {
-  const res = await fetch(`${BASE_URL}/mine`, { headers: authHeaders() })
-  const rows = await handleResponse<ApiClass[]>(res)
-  return rows.map(fromApi)
+  const { data } = await apiClient.get<ApiClass[]>(`${BASE_URL}/mine`)
+  return data.map(fromApi)
 }
 
 export async function getClass(id: number): Promise<Class> {
-  const res = await fetch(`${BASE_URL}/${id}`)
-  return fromApi(await handleResponse<ApiClass>(res))
+  const { data } = await apiClient.get<ApiClass>(`${BASE_URL}/${id}`)
+  return fromApi(data)
 }
 
 export async function createClass(payload: { name: string; status?: string }): Promise<Class> {
-  const res = await fetch(BASE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-  return fromApi(await handleResponse<ApiClass>(res))
+  const { data } = await apiClient.post<ApiClass>(BASE_URL, payload)
+  return fromApi(data)
 }
 
 export async function updateClass(id: number, payload: Record<string, unknown>): Promise<Class> {
-  const res = await fetch(`${BASE_URL}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-  return fromApi(await handleResponse<ApiClass>(res))
+  const { data } = await apiClient.put<ApiClass>(`${BASE_URL}/${id}`, payload)
+  return fromApi(data)
 }
 
 export async function deleteClass(id: number): Promise<void> {
-  const res = await fetch(`${BASE_URL}/${id}`, { method: 'DELETE' })
-  await handleResponse<{ message: string }>(res)
+  await apiClient.delete(`${BASE_URL}/${id}`)
 }
