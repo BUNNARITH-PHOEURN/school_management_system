@@ -7,8 +7,8 @@ interface LoginProps {
 }
 
 export default function Login({ onLogin, initialRegistering = false }: LoginProps) {
-  const [email, setEmail] = useState()
-  const [password, setPassword] = useState()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [isRegistering, setIsRegistering] = useState(initialRegistering)
   const [loading, setLoading] = useState(false)
