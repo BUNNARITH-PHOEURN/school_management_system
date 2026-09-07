@@ -2,7 +2,7 @@ const userModel = require('../models/userModel');
 const { hashPassword } = require('../utils/password');
 
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
-const toUser = (row) => ({ id: row.id, name: row.name, email: row.email, role: row.role, status: row.status, createdAt: row.created_at, lastLogin: row.last_login });
+const toUser = (row) => ({ id: row.id, name: row.name, email: row.email, role: row.role, status: row.status, createdAt: row.created_at, lastLogin: row.last_login, teacherId: row.teacher_id ?? null });
 
 exports.list = asyncHandler(async (req, res) => res.json({ users: (await userModel.list()).map(toUser) }));
 

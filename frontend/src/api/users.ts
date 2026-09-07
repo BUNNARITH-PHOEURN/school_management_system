@@ -9,6 +9,7 @@ export interface UserRecord {
   status: 'active' | 'inactive'
   createdAt: string | null
   lastLogin: string | null
+  teacherId?: number | null
 }
 
 export const listUsers = async () => (await apiClient.get<{ users: UserRecord[] }>('/users')).data

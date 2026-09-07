@@ -211,6 +211,7 @@ const deleteClass = asyncHandler(async (req, res) => {
 module.exports = {
   createClass,
   getAllClasses,
+  getMyClasses,
   getClassById,
   updateClass,
   deleteClass,

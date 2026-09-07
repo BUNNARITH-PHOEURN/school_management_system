@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { getDepartmentName, type Status } from '../data/mockData'
 import { createTeacher, listTeachers, updateTeacher, type Teacher } from '../api/teachers'
 import { listDepartments, type DepartmentRecord } from '../api/departments'
+import { listUsers, type UserRecord } from '../api/users'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
+import Autocomplete, { type AutocompleteOption } from '../components/Autocomplete'
 import Pagination from '../components/Pagination'
 import { SkeletonTable, EmptyState } from '../components/Skeleton'
 import { useToast } from '../context/ToastContext'
@@ -14,6 +16,7 @@ export default function Teachers() {
   const { toast } = useToast()
   const [data, setData] = useState<Teacher[]>([])
   const [departments, setDepartments] = useState<DepartmentRecord[]>([])
+  const [users, setUsers] = useState<UserRecord[]>([])
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | Status>('all')
@@ -24,9 +27,9 @@ export default function Teachers() {
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [viewTeacher, setViewTeacher] = useState<Teacher | null>(null)
   const [form, setForm] = useState<{
-    firstName: string; lastName: string; email: string; phone: string
+    userId: number; firstName: string; lastName: string; email: string; phone: string
     departmentId: number; gender: 'male' | 'female' | 'other'; specialization: string
-  }>({ firstName: '', lastName: '', email: '', phone: '', departmentId: 1, gender: 'male', specialization: '' })
+  }>({ userId: 0, firstName: '', lastName: '', email: '', phone: '', departmentId: 1, gender: 'male', specialization: '' })
 
   const filtered = data.filter(t =>
     (filterStatus === 'all' || t.status === filterStatus) &&
@@ -34,25 +37,47 @@ export default function Teachers() {
     `${t.firstName} ${t.lastName} ${t.code} ${t.email} ${t.specialization}`.toLowerCase().includes(search.toLowerCase())
   )
   const departmentName = (id: number) => departments.find(d => d.id === id)?.name ?? getDepartmentName(id)
+  const availableUsers = users.filter(u =>
+    u.teacherId === editing?.id || (u.role === 'moderator' && u.status === 'active')
+  )
+  const userOptions: AutocompleteOption[] = availableUsers.map(u => {
+    const linkedTeacher = u.teacherId ? data.find(t => t.id === u.teacherId) : undefined
+    return { id: u.id, label: u.name, sublabel: `${u.email}${linkedTeacher ? ` · linked to ${linkedTeacher.firstName} ${linkedTeacher.lastName}` : ''}` }
+  })
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
+  const applyUser = (userId: number) => {
+    const u = users.find(x => x.id === userId)
+    if (!u) { setForm(f => ({ ...f, userId: 0 })); return }
+    const nameParts = u.name.trim().split(/\s+/)
+    setForm(f => ({
+      ...f,
+      userId,
+      firstName: nameParts.shift() ?? f.firstName,
+      lastName: nameParts.length ? nameParts.join(' ') : f.lastName,
+      email: u.email,
+    }))
+  }
+
   const openCreate = () => {
     setEditing(null)
-    setForm({ firstName: '', lastName: '', email: '', phone: '', departmentId: 1, gender: 'male', specialization: '' })
+    setForm({ userId: 0, firstName: '', lastName: '', email: '', phone: '', departmentId: 1, gender: 'male', specialization: '' })
     setModalOpen(true)
   }
   const openEdit = (t: Teacher) => {
     setEditing(t)
-    setForm({ firstName: t.firstName, lastName: t.lastName, email: t.email, phone: t.phone, departmentId: t.departmentId, gender: t.gender, specialization: t.specialization })
+    const linked = users.find(u => u.teacherId === t.id)
+    setForm({ userId: linked?.id ?? 0, firstName: t.firstName, lastName: t.lastName, email: t.email, phone: t.phone, departmentId: t.departmentId, gender: t.gender, specialization: t.specialization })
     setModalOpen(true)
   }
   useEffect(() => {
-    Promise.all([listTeachers(), listDepartments()])
-      .then(([teacherRows, departmentBody]) => {
+    Promise.all([listTeachers(), listDepartments(), listUsers()])
+      .then(([teacherRows, departmentBody, userBody]) => {
         setData(teacherRows)
         setDepartments(departmentBody.departments)
+        setUsers(userBody.users)
       })
       .catch(err => setError(err instanceof Error ? err.message : 'Unable to load teachers'))
   }, [])
@@ -171,6 +196,16 @@ export default function Teachers() {
           </>
         }
       >
+        <FormField label="Link User Account"><Autocomplete
+          options={userOptions}
+          value={form.userId}
+          onChange={applyUser}
+          placeholder="Search or select a user…"
+          inputClass={inputClass}
+          inputStyle={inputStyle}
+        />
+        {form.userId > 0 && <p className="text-xs mt-1.5" style={{ color: '#6b7280' }}>Linked to user account — name and email are pulled from the user.</p>}
+        </FormField>
         <div className="grid grid-cols-2 gap-x-4">
           <FormField label="First Name" required><input value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} className={inputClass} style={inputStyle} /></FormField>
           <FormField label="Last Name" required><input value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} className={inputClass} style={inputStyle} /></FormField>

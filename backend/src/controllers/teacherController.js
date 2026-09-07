@@ -76,6 +76,19 @@ function validateTeacher(body, { partial = false } = {}) {
     }
   }
 
+  if (has('user_id')) {
+    if (body.user_id === null || body.user_id === '') {
+      data.user_id = null;
+    } else {
+      const userId = Number.parseInt(body.user_id, 10);
+      if (!Number.isInteger(userId) || userId <= 0) {
+        errors.push('user_id must be a positive integer');
+      } else {
+        data.user_id = userId;
+      }
+    }
+  }
+
   return { errors, data };
 }
 
@@ -108,6 +121,9 @@ exports.createTeacher = asyncHandler(async (req, res) => {
 
   try {
     const teacher = await teacherModel.createTeacher(data);
+    if (data.user_id !== undefined) {
+      await teacherModel.linkUser(data.user_id, teacher.id);
+    }
     res.status(201).json(teacher);
   } catch (error) {
     if (error.code === 'ER_NO_REFERENCED_ROW_2') {
@@ -132,6 +148,10 @@ exports.updateTeacher = asyncHandler(async (req, res) => {
 
   const teacher = await teacherModel.updateTeacher(id, data);
   if (!teacher) return res.status(404).json({ error: 'Teacher not found' });
+
+  if (data.user_id !== undefined) {
+    await teacherModel.linkUser(data.user_id, id);
+  }
 
   res.json(teacher);
 });

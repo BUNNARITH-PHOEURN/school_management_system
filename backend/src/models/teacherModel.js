@@ -61,10 +61,20 @@ async function deleteTeacher(id) {
   return result.affectedRows > 0;
 }
 
+async function linkUser(userId, teacherId) {
+  await query('UPDATE users SET teacher_id = NULL WHERE teacher_id = ?', [teacherId]);
+  if (userId) {
+    await query('UPDATE users SET teacher_id = ? WHERE id = ?', [teacherId, userId]);
+  }
+  const user = await query('SELECT id, name, email, teacher_id FROM users WHERE id = ?', [userId]);
+  return user[0] ?? null;
+}
+
 module.exports = {
   getAllTeachers,
   getTeacherById,
   createTeacher,
   updateTeacher,
   deleteTeacher,
+  linkUser,
 };
