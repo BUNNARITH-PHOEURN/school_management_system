@@ -3,8 +3,8 @@ import type { SessionUser } from '../api/auth'
 
 export type Page =
   | 'dashboard' | 'users' | 'departments' | 'academic-years'
-  | 'students' | 'teachers' | 'teacher-assignments' | 'subjects'
-  | 'classes' | 'enrollments' | 'attendance' | 'reports' | 'profile'
+  | 'students' | 'teachers' | 'subjects'
+  | 'classes' | 'enrollments' | 'subject-fees' | 'attendance' | 'payments' | 'reports' | 'profile'
 
 interface NavGroup {
   label: string
@@ -44,14 +44,15 @@ const navGroups: NavGroup[] = [
     items: [
       { id: 'subjects', label: 'Subjects', icon: <Ico d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /> },
       { id: 'classes', label: 'Classes', icon: <Ico d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /> },
-      { id: 'teacher-assignments', label: 'Assignments', icon: <Ico d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2 M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2" /> },
       { id: 'enrollments', label: 'Enrollments', icon: <Ico d="M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /> },
+      { id: 'subject-fees', label: 'Subject Fees', icon: <Ico d="M12 1v22 M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /> },
     ],
   },
   {
     label: 'Tracking',
     items: [
       { id: 'attendance', label: 'Attendance', icon: <Ico d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /> },
+      { id: 'payments', label: 'Payments', icon: <Ico d="M12 1v22 M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /> },
       { id: 'reports', label: 'Reports', icon: <Ico d="M18 20V10 M12 20V4 M6 20v-6" /> },
     ],
   },

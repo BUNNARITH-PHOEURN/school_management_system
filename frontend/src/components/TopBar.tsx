@@ -9,11 +9,12 @@ const breadcrumbs: Record<Page, string[]> = {
   'academic-years': ['Administration', 'Academic Years'],
   students: ['People', 'Students'],
   teachers: ['People', 'Teachers'],
-  'teacher-assignments': ['Academics', 'Teacher Assignments'],
   subjects: ['Academics', 'Subjects'],
   classes: ['Academics', 'Classes'],
   enrollments: ['Academics', 'Enrollments'],
+  'subject-fees': ['Academics', 'Subject Fees'],
   attendance: ['Tracking', 'Attendance'],
+  payments: ['Tracking', 'Payments'],
   reports: ['Tracking', 'Reports'],
   profile: ['Account', 'Profile'],
 }
