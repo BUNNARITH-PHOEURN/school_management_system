@@ -143,6 +143,16 @@ CREATE TABLE IF NOT EXISTS enrollments (
   status ENUM('pending', 'approved', 'rejected', 'dropped') NOT NULL DEFAULT 'pending',
   reviewed_by INT NULL,
   reviewed_at DATETIME NULL,
+  notes TEXT NULL,
+  docs_declared TINYINT(1) NOT NULL DEFAULT 0,
+  doc_grade12 TINYINT(1) NOT NULL DEFAULT 0,
+  doc_transcript TINYINT(1) NOT NULL DEFAULT 0,
+  doc_idcopy TINYINT(1) NOT NULL DEFAULT 0,
+  amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  payment_status ENUM('unpaid', 'paid') NOT NULL DEFAULT 'unpaid',
+  payment_method VARCHAR(50) NULL,
+  payment_reference VARCHAR(100) NULL,
+  paid_at DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY enrollment_unique (student_id, class_id),
   CONSTRAINT fk_enrollments_student
@@ -150,6 +160,24 @@ CREATE TABLE IF NOT EXISTS enrollments (
     ON DELETE CASCADE,
   CONSTRAINT fk_enrollments_class
     FOREIGN KEY (class_id) REFERENCES classes (id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ------------------------------------------------------------
+-- 8b. Subject Fees  (fee per subject per academic year)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS subject_fees (
+  id INT NOT NULL AUTO_INCREMENT,
+  subject_id INT NOT NULL,
+  academic_year_id INT NOT NULL,
+  fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (id),
+  UNIQUE KEY subject_fee_unique (subject_id, academic_year_id),
+  CONSTRAINT fk_subject_fees_subject
+    FOREIGN KEY (subject_id) REFERENCES subjects (id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_subject_fees_year
+    FOREIGN KEY (academic_year_id) REFERENCES academic_years (id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -184,7 +212,7 @@ CREATE TABLE IF NOT EXISTS users (
   bio TEXT NULL,
   avatar_url MEDIUMTEXT NULL,
   password_hash VARCHAR(255) NULL,
-  role ENUM('admin', 'moderator', 'student') NOT NULL DEFAULT 'student',
+  role ENUM('admin', 'moderator', 'teacher', 'student') NOT NULL DEFAULT 'student',
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   teacher_id INT NULL,
   student_id INT NULL,
@@ -204,6 +232,22 @@ SET @col_exists = (
 SET @ddl = IF(
   @col_exists = 0,
   'ALTER TABLE users ADD COLUMN student_id INT NULL AFTER teacher_id, ADD KEY users_student_id (student_id)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Idempotent migration for users: widen role enum to include 'teacher'
+SET @role_ok = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'role'
+    AND COLUMN_TYPE LIKE '%teacher%'
+);
+SET @ddl = IF(
+  @role_ok = 0,
+  "ALTER TABLE users MODIFY COLUMN role ENUM('admin','moderator','teacher','student') NOT NULL DEFAULT 'student'",
   'SELECT 1'
 );
 PREPARE stmt FROM @ddl;
@@ -232,6 +276,30 @@ PREPARE stmt FROM @ddl;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- Idempotent migration for enrollments: add document, fee and payment columns
+SET @doc_exists = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'enrollments' AND COLUMN_NAME = 'doc_grade12'
+);
+SET @ddl = IF(
+  @doc_exists = 0,
+  "ALTER TABLE enrollments
+     ADD COLUMN notes TEXT NULL AFTER reviewed_at,
+     ADD COLUMN docs_declared TINYINT(1) NOT NULL DEFAULT 0 AFTER notes,
+     ADD COLUMN doc_grade12 TINYINT(1) NOT NULL DEFAULT 0 AFTER docs_declared,
+     ADD COLUMN doc_transcript TINYINT(1) NOT NULL DEFAULT 0 AFTER doc_grade12,
+     ADD COLUMN doc_idcopy TINYINT(1) NOT NULL DEFAULT 0 AFTER doc_transcript,
+     ADD COLUMN amount DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER doc_idcopy,
+     ADD COLUMN payment_status ENUM('unpaid','paid') NOT NULL DEFAULT 'unpaid' AFTER amount,
+     ADD COLUMN payment_method VARCHAR(50) NULL AFTER payment_status,
+     ADD COLUMN payment_reference VARCHAR(100) NULL AFTER payment_method,
+     ADD COLUMN paid_at DATETIME NULL AFTER payment_reference",
+  'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 UPDATE enrollments SET status = 'approved' WHERE status = 'enrolled';
 
 SET @rb_exists = (
@@ -246,3 +314,19 @@ SET @ddl = IF(
 PREPARE stmt FROM @ddl;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- Idempotent: ensure subject_fees table exists for existing databases
+CREATE TABLE IF NOT EXISTS subject_fees (
+  id INT NOT NULL AUTO_INCREMENT,
+  subject_id INT NOT NULL,
+  academic_year_id INT NOT NULL,
+  fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (id),
+  UNIQUE KEY subject_fee_unique (subject_id, academic_year_id),
+  CONSTRAINT fk_subject_fees_subject
+    FOREIGN KEY (subject_id) REFERENCES subjects (id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_subject_fees_year
+    FOREIGN KEY (academic_year_id) REFERENCES academic_years (id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

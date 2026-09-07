@@ -1,7 +1,11 @@
 const enrollmentModel = require('../models/enrollmentModel');
+const classModel = require('../models/classModel');
+const subjectFeeModel = require('../models/subjectFeeModel');
+const { paginate, pageResponse } = require('../utils/pagination');
 
 const MODERATOR_ROLES = ['admin', 'moderator'];
 const STATUSES = ['pending', 'approved', 'rejected', 'dropped'];
+const DOC_FIELDS = ['doc_grade12', 'doc_transcript', 'doc_idcopy'];
 
 function parseId(id) {
   const parsed = Number.parseInt(id, 10);
@@ -12,10 +16,32 @@ function isModerator(user) {
   return MODERATOR_ROLES.includes(user?.role);
 }
 
+async function resolveAmount(classId) {
+  const cls = await classModel.getClassById(classId);
+  if (!cls || !cls.subject_id || !cls.academic_year_id) return 0;
+  const fee = await subjectFeeModel.getFee(cls.subject_id, cls.academic_year_id);
+  return fee ? Number(fee.fee) : 0;
+}
+
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 exports.getAllEnrollments = asyncHandler(async (req, res) => {
+  const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
+  if (hasPaging) {
+    const { page, limit, offset } = paginate(req.query);
+    const filters = {
+      search: typeof req.query.search === 'string' ? req.query.search.trim() : undefined,
+      status: req.query.status,
+      payment_status: req.query.payment_status,
+      class_id: req.query.class_id,
+    };
+    const [enrollments, total] = await Promise.all([
+      enrollmentModel.getAllEnrollments({ limit, offset, ...filters }),
+      enrollmentModel.countEnrollments(filters),
+    ]);
+    return res.json(pageResponse(enrollments, total, { page, limit }));
+  }
   const enrollments = await enrollmentModel.getAllEnrollments();
   res.json(enrollments);
 });
@@ -68,7 +94,12 @@ exports.createEnrollment = asyncHandler(async (req, res) => {
     }
   }
 
-  const enrollment = await enrollmentModel.createEnrollment(studentId, classId);
+  const amount = await resolveAmount(classId);
+  const enrollment = await enrollmentModel.createEnrollment(studentId, classId, {
+    notes: body.notes ?? null,
+    docs_declared: body.docs_declared ? 1 : 0,
+    amount,
+  });
   res.status(201).json(enrollment);
 });
 
@@ -91,6 +122,24 @@ async function reviewEnrollment(req, res, status) {
     return res.status(400).json({ error: `Enrollment has already been ${current.status === 'approved' ? 'approved' : 'reviewed'}` });
   }
 
+  if (status === 'approved') {
+    // Persist the verified document flags before approving, and gate on them.
+    const flags = {};
+    for (const field of DOC_FIELDS) {
+      if (req.body && req.body[field] !== undefined) {
+        flags[field] = req.body[field] ? 1 : 0;
+      }
+    }
+    if (Object.keys(flags).length > 0) {
+      await enrollmentModel.updateEnrollment(id, flags);
+    }
+    const fresh = await enrollmentModel.getEnrollmentById(id);
+    const allDocs = DOC_FIELDS.every((f) => Number(fresh[f]) === 1);
+    if (!allDocs) {
+      return res.status(400).json({ error: 'All required documents must be verified before approval' });
+    }
+  }
+
   const enrollment = await enrollmentModel.review(id, status, req.user.id);
   res.json(enrollment);
 }
@@ -101,6 +150,39 @@ exports.approveEnrollment = asyncHandler(async (req, res) => {
 
 exports.rejectEnrollment = asyncHandler(async (req, res) => {
   await reviewEnrollment(req, res, 'rejected');
+});
+
+exports.payEnrollment = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: 'Invalid enrollment id' });
+  }
+
+  const enrollment = await enrollmentModel.getEnrollmentById(id);
+  if (!enrollment) {
+    return res.status(404).json({ error: 'Enrollment not found' });
+  }
+
+  const isOwner = req.user.role === 'student' && req.user.student_id === enrollment.student_id;
+  if (!isModerator(req.user) && !isOwner) {
+    return res.status(403).json({ error: 'You can only pay for your own enrollments' });
+  }
+  if (enrollment.status !== 'approved') {
+    return res.status(400).json({ error: 'Only approved enrollments can be paid' });
+  }
+  if (enrollment.payment_status === 'paid') {
+    return res.status(400).json({ error: 'Enrollment has already been paid' });
+  }
+
+  const body = req.body || {};
+  const method = typeof body.method === 'string' && body.method.trim() ? body.method.trim().slice(0, 50) : null;
+  const reference = typeof body.reference === 'string' && body.reference.trim() ? body.reference.trim().slice(0, 100) : null;
+  if (!method) {
+    return res.status(400).json({ error: 'payment method is required' });
+  }
+
+  const updated = await enrollmentModel.markPaid(id, method, reference);
+  res.json(updated);
 });
 
 exports.updateEnrollment = asyncHandler(async (req, res) => {
@@ -159,7 +241,35 @@ exports.updateEnrollment = asyncHandler(async (req, res) => {
     }
   }
 
+  // A student can update their own PENDING enrollment's document declaration and
+  // notes (save a draft / complete documents before the deadline).
+  if (req.user.role === 'student' && enrollment.status === 'pending') {
+    if (enrollment.student_id !== req.user.student_id) {
+      return res.status(403).json({ error: 'You can only update your own enrollments' });
+    }
+    for (const field of DOC_FIELDS) {
+      if (body[field] !== undefined) updates[field] = body[field] ? 1 : 0;
+    }
+    if (body.docs_declared !== undefined) updates.docs_declared = body.docs_declared ? 1 : 0;
+    if (body.notes !== undefined) updates.notes = body.notes || null;
+  }
+
   if (body.enrolled_at !== undefined) updates.enrolled_at = body.enrolled_at || null;
+
+  // Moderator can update document-verification flags and notes at any time.
+  if (isModerator(req.user)) {
+    for (const field of DOC_FIELDS) {
+      if (body[field] !== undefined) updates[field] = body[field] ? 1 : 0;
+    }
+    if (body.notes !== undefined) updates.notes = body.notes || null;
+    if (body.amount !== undefined) {
+      const amount = Number(body.amount);
+      if (!Number.isFinite(amount) || amount < 0) {
+        return res.status(400).json({ error: 'amount must be a non-negative number' });
+      }
+      updates.amount = amount;
+    }
+  }
 
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'No valid fields to update' });

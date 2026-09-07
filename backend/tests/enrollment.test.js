@@ -33,6 +33,16 @@ const enrollmentRow = {
   status: 'approved',
   reviewed_by: null,
   reviewed_at: null,
+  notes: null,
+  docs_declared: 1,
+  doc_grade12: 1,
+  doc_transcript: 1,
+  doc_idcopy: 1,
+  amount: 120,
+  payment_status: 'unpaid',
+  payment_method: null,
+  payment_reference: null,
+  paid_at: null,
   student_code: 'STU-001',
   student_name: 'Amara Osei',
   class_name: 'CS Intro — Section A',
@@ -216,7 +226,7 @@ function mockReview(userRow, currentRow, updatedRow) {
 }
 
 describe('PATCH /api/enrollments/:id/approve', () => {
-  test('returns 200 and approves a pending enrollment', async () => {
+  test('returns 200 and approves a pending enrollment when documents are verified', async () => {
     mockReview(
       adminRow,
       { ...enrollmentRow, status: 'pending' },
@@ -225,10 +235,27 @@ describe('PATCH /api/enrollments/:id/approve', () => {
 
     const res = await request(app)
       .patch('/api/enrollments/1/approve')
-      .set(adminHeader);
+      .set(adminHeader)
+      .send({ doc_grade12: 1, doc_transcript: 1, doc_idcopy: 1 });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('approved');
+  });
+
+  test('returns 400 when documents are not all verified', async () => {
+    mockReview(
+      adminRow,
+      { ...enrollmentRow, status: 'pending', doc_grade12: 0 },
+      { ...enrollmentRow, status: 'pending', doc_idcopy: 0 },
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/approve')
+      .set(adminHeader)
+      .send({ doc_grade12: 1, doc_transcript: 1, doc_idcopy: 0 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('All required documents must be verified before approval');
   });
 
   test('returns 403 when a student tries to approve', async () => {
@@ -285,6 +312,82 @@ describe('PATCH /api/enrollments/:id/reject', () => {
   });
 });
 
+describe('PATCH /api/enrollments/:id/pay', () => {
+  test('returns 200 and marks an approved unpaid enrollment as paid', async () => {
+    mockReview(
+      studentRow,
+      { ...enrollmentRow, student_id: 42, status: 'approved', payment_status: 'unpaid' },
+      { ...enrollmentRow, student_id: 42, status: 'approved', payment_status: 'paid' },
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/pay')
+      .set(studentHeader)
+      .send({ method: 'Credit Card', reference: 'TXN-123' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.payment_status).toBe('paid');
+  });
+
+  test('returns 400 when the enrollment is not approved', async () => {
+    query.mockImplementation(async (sql) =>
+      sql.includes('FROM users')
+        ? [studentRow]
+        : [{ ...enrollmentRow, student_id: 42, status: 'pending' }],
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/pay')
+      .set(studentHeader)
+      .send({ method: 'Credit Card' });
+
+    expect(res.status).toBe(400);
+  });
+
+  test('returns 400 when the enrollment is already paid', async () => {
+    query.mockImplementation(async (sql) =>
+      sql.includes('FROM users')
+        ? [studentRow]
+        : [{ ...enrollmentRow, student_id: 42, status: 'approved', payment_status: 'paid' }],
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/pay')
+      .set(studentHeader)
+      .send({ method: 'Credit Card' });
+
+    expect(res.status).toBe(400);
+  });
+
+  test('returns 403 when paying someone else enrollment', async () => {
+    query.mockImplementation(async (sql) =>
+      sql.includes('FROM users') ? [studentRow] : [enrollmentRow],
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/pay')
+      .set(studentHeader)
+      .send({ method: 'Credit Card' });
+
+    expect(res.status).toBe(403);
+  });
+
+  test('returns 400 when payment method is missing', async () => {
+    query.mockImplementation(async (sql) =>
+      sql.includes('FROM users')
+        ? [studentRow]
+        : [{ ...enrollmentRow, student_id: 42, status: 'approved', payment_status: 'unpaid' }],
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/pay')
+      .set(studentHeader)
+      .send({});
+
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('PUT /api/enrollments/:id', () => {
   test('returns 200 and lets a moderator approve a pending enrollment', async () => {
     mockReview(
@@ -296,7 +399,7 @@ describe('PUT /api/enrollments/:id', () => {
     const res = await request(app)
       .put('/api/enrollments/1')
       .set(adminHeader)
-      .send({ status: 'approved' });
+      .send({ status: 'approved', doc_grade12: 1, doc_transcript: 1, doc_idcopy: 1 });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('approved');
@@ -332,6 +435,22 @@ describe('PUT /api/enrollments/:id', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('dropped');
+  });
+
+  test('lets a student save a draft on their own pending enrollment', async () => {
+    mockReview(
+      studentRow,
+      { ...enrollmentRow, student_id: 42, status: 'pending' },
+      { ...enrollmentRow, student_id: 42, status: 'pending', doc_grade12: 1 },
+    );
+
+    const res = await request(app)
+      .put('/api/enrollments/1')
+      .set(studentHeader)
+      .send({ doc_grade12: 1, notes: 'will upload transcript later' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.doc_grade12).toBe(1);
   });
 
   test('returns 403 when a student tries to approve', async () => {
