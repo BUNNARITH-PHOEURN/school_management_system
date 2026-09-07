@@ -27,6 +27,7 @@ type ApiClass = {
   start_time: string | null
   end_time: string | null
   status: 'active' | 'inactive'
+  teacher_ids?: number[] | string | null
 }
 
 type ClassPayload = Partial<{
@@ -38,6 +39,7 @@ type ClassPayload = Partial<{
   startTime: string
   endTime: string
   status: string
+  teacherIds: number[]
 }>
 
 function toApiPayload(payload: ClassPayload): Record<string, unknown> {
@@ -50,11 +52,18 @@ function toApiPayload(payload: ClassPayload): Record<string, unknown> {
   if (payload.startTime !== undefined) api.start_time = payload.startTime
   if (payload.endTime !== undefined) api.end_time = payload.endTime
   if (payload.status !== undefined) api.status = payload.status
+  if (payload.teacherIds !== undefined) api.teacher_ids = payload.teacherIds
   return api
 }
 
 function fromResponse(response: { data: ApiClass }): Class {
   return fromApi(response.data)
+}
+
+function parseTeacherIds(value: number[] | string | null | undefined): number[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value.map(Number).filter(n => Number.isInteger(n))
+  return String(value).split(',').map(s => Number(s.trim())).filter(n => Number.isInteger(n))
 }
 
 function fromApi(row: ApiClass): Class {
@@ -68,7 +77,7 @@ function fromApi(row: ApiClass): Class {
     startTime: row.start_time ?? '',
     endTime: row.end_time ?? '',
     status: row.status,
-    teacherIds: [],
+    teacherIds: parseTeacherIds(row.teacher_ids),
   }
 }
 

@@ -5,6 +5,7 @@ import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../comp
 import { useToast } from '../context/ToastContext'
 import { EmptyState } from '../components/Skeleton'
 import { getApiError } from '../api/client'
+import ViewToggle from '../components/ViewToggle'
 
 export default function Departments() {
   const { toast } = useToast()
@@ -12,6 +13,7 @@ export default function Departments() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [view, setView] = useState<'card' | 'table'>('card')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<DepartmentRecord | null>(null)
   const [confirmId, setConfirmId] = useState<number | null>(null)
@@ -52,9 +54,12 @@ export default function Departments() {
       {error && <div className="px-3 py-2 rounded-lg text-sm" style={{ backgroundColor: '#fff1f2', color: '#9f1239' }}>{error}</div>}
 
       <div className="bg-white rounded-xl border p-3.5" style={{ borderColor: '#e2e7f0' }}>
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search departments…" className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0' }} />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-40">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search departments…" className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0' }} />
+          </div>
+          <ViewToggle view={view} onChange={setView} />
         </div>
       </div>
 
@@ -62,7 +67,7 @@ export default function Departments() {
         <div className="bg-white rounded-xl border" style={{ borderColor: '#e2e7f0' }}>
           <EmptyState icon="🏫" title="No departments found" description="Try a different search term." />
         </div>
-      ) : (
+      ) : view === 'card' ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map(dept => (
             <div key={dept.id} className="bg-white rounded-xl border p-5 flex flex-col" style={{ borderColor: dept.status === 'active' ? '#e2e7f0' : '#f0f3fa' }}>
@@ -100,6 +105,48 @@ export default function Departments() {
               </div>
             </div>
           ))}
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: '#e2e7f0' }}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ backgroundColor: '#f8f9fd', borderBottom: '1px solid #e2e7f0' }}>
+                {['Department', 'Description', 'Students', 'Teachers', 'Status', 'Created', 'Actions'].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(dept => (
+                <tr key={dept.id} className="border-t hover:bg-gray-50 transition-colors" style={{ borderColor: '#f0f3fa' }}>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ backgroundColor: '#eff2ff', color: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>
+                        {dept.code.slice(0, 3)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold truncate" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{dept.name}</div>
+                        <div className="text-xs font-mono" style={{ color: '#9ca3af' }}>{dept.code}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs max-w-xs truncate" style={{ color: '#6b7280' }}>{dept.description}</td>
+                  <td className="px-4 py-3 text-sm font-medium" style={{ color: '#374151' }}>{dept.student_count}</td>
+                  <td className="px-4 py-3 text-sm font-medium" style={{ color: '#374151' }}>{dept.teacher_count}</td>
+                  <td className="px-4 py-3"><Badge variant={statusVariant(dept.status)} dot>{dept.status}</Badge></td>
+                  <td className="px-4 py-3 text-xs" style={{ color: '#9ca3af' }}>{dept.created_at?.slice(0, 10)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => openEdit(dept)} className="px-3 py-1.5 text-xs font-medium rounded-lg border hover:bg-gray-50" style={{ borderColor: '#e2e7f0', color: '#374151' }}>Edit</button>
+                      <button onClick={() => setConfirmId(dept.id)} className="px-3 py-1.5 text-xs font-medium rounded-lg border" style={{ borderColor: dept.status === 'active' ? '#fca5a5' : '#d1fae5', color: dept.status === 'active' ? '#e11d48' : '#059669' }}>
+                        {dept.status === 'active' ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

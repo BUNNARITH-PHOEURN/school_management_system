@@ -30,7 +30,19 @@ exports.getEnrollmentById = asyncHandler(async (req, res) => {
 
 exports.createEnrollment = asyncHandler(async (req, res) => {
   const body = req.body || {};
-  const studentId = parseId(body.student_id);
+  const user = req.user;
+  const isStudent = user.role === 'student';
+
+  let studentId;
+  if (isStudent) {
+    studentId = user.student_id;
+    if (!studentId) {
+      return res.status(403).json({ error: 'Your account is not linked to a student record' });
+    }
+  } else {
+    studentId = parseId(body.student_id);
+  }
+
   const classId = parseId(body.class_id);
 
   if (!studentId || !classId) {
@@ -54,6 +66,16 @@ exports.updateEnrollment = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) {
     return res.status(400).json({ error: 'Invalid enrollment id' });
+  }
+
+  if (req.user.role === 'student') {
+    const enrollment = await enrollmentModel.getEnrollmentById(id);
+    if (!enrollment) {
+      return res.status(404).json({ error: 'Enrollment not found' });
+    }
+    if (enrollment.student_id !== req.user.student_id) {
+      return res.status(403).json({ error: 'You can only update your own enrollments' });
+    }
   }
 
   const body = req.body || {};
@@ -82,6 +104,16 @@ exports.deleteEnrollment = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) {
     return res.status(400).json({ error: 'Invalid enrollment id' });
+  }
+
+  if (req.user.role === 'student') {
+    const enrollment = await enrollmentModel.getEnrollmentById(id);
+    if (!enrollment) {
+      return res.status(404).json({ error: 'Enrollment not found' });
+    }
+    if (enrollment.student_id !== req.user.student_id) {
+      return res.status(403).json({ error: 'You can only delete your own enrollments' });
+    }
   }
 
   const deleted = await enrollmentModel.deleteEnrollment(id);

@@ -63,6 +63,7 @@ function AppShell() {
   const [currentPage, setCurrentPage] = useState<Page>(() => getPageFromHash())
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [loggedOutView, setLoggedOutView] = useState<'landing' | 'login'>('landing')
 
   // Keep the current page in the URL hash so it survives refresh,
   // and so the browser back/forward buttons move between pages.
@@ -185,6 +186,10 @@ function AppShell() {
           onRegister={() => { setRegistering(true); setShowLogin(true) }}
           onStudentRegister={() => setPublicView('student-register')}
           onStudentLogin={() => setPublicView('student-login')}
+          onEnroll={() => {
+            window.location.hash = '/student/enroll'
+            setPublicView('student-login')
+          }}
           onAbout={() => setPublicView('about')}
           onDepartments={() => setPublicView('departments')}
           onContact={() => setPublicView('contact')}

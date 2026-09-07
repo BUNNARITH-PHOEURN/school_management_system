@@ -3,6 +3,7 @@ import { listDepartments, type DepartmentRecord } from '../api/departments'
 import { createSubject, listSubjects, updateSubject, updateSubjectStatus, type Subject } from '../api/subjects'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
+import ViewToggle from '../components/ViewToggle'
 
 export default function Subjects() {
   const [data, setData] = useState<Subject[]>([])
@@ -10,6 +11,7 @@ export default function Subjects() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [filterDept, setFilterDept] = useState<number | 'all'>('all')
+  const [view, setView] = useState<'card' | 'table'>('table')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Subject | null>(null)
   const [confirmId, setConfirmId] = useState<number | null>(null)
@@ -66,21 +68,59 @@ export default function Subjects() {
           <option value="all">All Departments</option>
           {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
+        <ViewToggle view={view} onChange={setView} />
       </div>
 
-      <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: '#e2e7f0' }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ backgroundColor: '#f8f9fd', borderBottom: '1px solid #e2e7f0' }}>
-              {['Subject', 'Code', 'Department', 'Credits', 'Description', 'Status', 'Actions'].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-12" style={{ color: '#9ca3af' }}>No subjects found</td></tr>
-            ) : filtered.map(s => (
+      {view === 'card' ? (
+        filtered.length === 0 ? (
+          <div className="bg-white rounded-xl border py-14 text-center" style={{ borderColor: '#e2e7f0' }}>
+            <div className="text-3xl mb-2">📚</div>
+            <div className="text-sm font-medium" style={{ fontFamily: 'Outfit, sans-serif', color: '#374151' }}>No subjects found</div>
+            <div className="text-xs mt-1" style={{ color: '#9ca3af' }}>Try adjusting your search or department filter.</div>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map(s => (
+              <div key={s.id} className="bg-white rounded-xl border p-5 flex flex-col" style={{ borderColor: '#e2e7f0' }}>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0" style={{ backgroundColor: '#eff2ff', color: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>
+                    {s.name.charAt(0)}
+                  </div>
+                  <Badge variant={statusVariant(s.status)} dot>{s.status}</Badge>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="font-semibold" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{s.name}</div>
+                  <span className="text-xs font-mono" style={{ color: '#9ca3af' }}>{s.code}</span>
+                </div>
+                <div className="text-xs mt-1" style={{ color: '#6b7280' }}>{getDepartmentName(s.department_id)}</div>
+                <p className="text-xs mt-3 mb-4 flex-1" style={{ color: '#6b7280', lineHeight: 1.6 }}>{s.description || 'No description provided.'}</p>
+                <div className="flex items-center justify-between pt-3 border-t" style={{ borderColor: '#f0f3fa' }}>
+                  <span className="px-2 py-0.5 rounded-md text-xs font-semibold" style={{ backgroundColor: '#eff2ff', color: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>{s.credits} credits</span>
+                  <div className="flex gap-1">
+                    <button onClick={() => openEdit(s)} className="px-3 py-1.5 text-xs font-medium rounded-lg border hover:bg-gray-50" style={{ borderColor: '#e2e7f0', color: '#374151' }}>Edit</button>
+                    <button onClick={() => setConfirmId(s.id)} className="px-3 py-1.5 text-xs font-medium rounded-lg border" style={{ borderColor: s.status === 'active' ? '#fca5a5' : '#e2e7f0', color: s.status === 'active' ? '#e11d48' : '#059669' }}>
+                      {s.status === 'active' ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: '#e2e7f0' }}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ backgroundColor: '#f8f9fd', borderBottom: '1px solid #e2e7f0' }}>
+                {['Subject', 'Code', 'Department', 'Credits', 'Description', 'Status', 'Actions'].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={7} className="text-center py-12" style={{ color: '#9ca3af' }}>No subjects found</td></tr>
+              ) : filtered.map(s => (
               <tr key={s.id} className="border-t hover:bg-gray-50 transition-colors" style={{ borderColor: '#f0f3fa' }}>
                 <td className="px-4 py-3 font-medium" style={{ color: '#1a1f36' }}>{s.name}</td>
                 <td className="px-4 py-3 font-mono text-xs" style={{ color: '#6b7280' }}>{s.code}</td>
@@ -99,10 +139,11 @@ export default function Subjects() {
                   </div>
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Subject' : 'Add Subject'}
         footer={

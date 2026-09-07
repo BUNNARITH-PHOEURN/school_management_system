@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { pool, query } = require('../config/db');
 
 const CLASS_FIELDS = [
   'name',
@@ -12,11 +12,26 @@ const CLASS_FIELDS = [
 ];
 
 async function getAllClasses() {
-  return query('SELECT * FROM classes ORDER BY id');
+  return query(`
+    SELECT c.*,
+      COALESCE(GROUP_CONCAT(ct.teacher_id ORDER BY ct.teacher_id), '') AS teacher_ids
+    FROM classes c
+    LEFT JOIN class_teachers ct ON ct.class_id = c.id
+    GROUP BY c.id
+    ORDER BY c.id
+  `);
 }
 
 async function getClassById(id) {
-  const rows = await query('SELECT * FROM classes WHERE id = ? LIMIT 1', [id]);
+  const rows = await query(`
+    SELECT c.*,
+      COALESCE(GROUP_CONCAT(ct.teacher_id ORDER BY ct.teacher_id), '') AS teacher_ids
+    FROM classes c
+    LEFT JOIN class_teachers ct ON ct.class_id = c.id
+    WHERE c.id = ?
+    GROUP BY c.id
+    LIMIT 1
+  `, [id]);
   return rows[0];
 }
 
@@ -60,6 +75,26 @@ async function deleteClass(id) {
   return result.affectedRows > 0;
 }
 
+async function replaceTeacherAssignments(classId, teacherIds) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('DELETE FROM class_teachers WHERE class_id = ?', [classId]);
+    for (const teacherId of teacherIds) {
+      await conn.query(
+        'INSERT INTO class_teachers (class_id, teacher_id) VALUES (?, ?)',
+        [classId, teacherId],
+      );
+    }
+    await conn.commit();
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   getAllClasses,
   getClassById,
@@ -67,4 +102,5 @@ module.exports = {
   createClass,
   updateClass,
   deleteClass,
+  replaceTeacherAssignments,
 };

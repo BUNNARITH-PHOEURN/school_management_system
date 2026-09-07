@@ -13,12 +13,13 @@ interface HomeProps {
   onRegister: () => void;
   onStudentRegister: () => void;
   onStudentLogin: () => void;
+  onEnroll: () => void;
   onAbout: () => void;
   onDepartments: () => void;
   onContact: () => void;
 }
 
-export default function Home({ onLogin, onRegister, onStudentRegister, onStudentLogin, onAbout, onDepartments, onContact }: HomeProps) {
+export default function Home({ onLogin, onRegister, onStudentRegister, onStudentLogin, onEnroll, onAbout, onDepartments, onContact }: HomeProps) {
   const [year, setYear] = useState("2026-2027");
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -125,8 +126,14 @@ export default function Home({ onLogin, onRegister, onStudentRegister, onStudent
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <button
+                  onClick={onEnroll}
+                  className="rounded-full bg-[#13c694] px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-emerald-900/20"
+                >
+                  Enroll Now →
+                </button>
+                <button
                   onClick={onStudentRegister}
-                  className="rounded-full bg-[#13c694] px-5 py-3 text-sm font-extrabold text-white"
+                  className="rounded-full border border-white/35 bg-white/10 px-5 py-3 text-sm font-extrabold text-white"
                 >
                   Register as Student
                 </button>
@@ -134,7 +141,7 @@ export default function Home({ onLogin, onRegister, onStudentRegister, onStudent
                   onClick={onStudentLogin}
                   className="rounded-full border border-white/35 bg-white/10 px-5 py-3 text-sm font-extrabold text-white"
                 >
-                  Student Login →
+                  Student Login
                 </button>
               </div>
             </div>

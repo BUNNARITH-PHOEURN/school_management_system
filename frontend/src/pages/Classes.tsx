@@ -5,6 +5,7 @@ import { listSubjects, type Subject } from '../api/subjects'
 import { createClass, listClasses, updateClass, type Class } from '../api/classes'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle } from '../components/Modal'
+import ViewToggle from '../components/ViewToggle'
 
 export default function Classes() {
   const [data, setData] = useState<Class[]>([])
@@ -14,6 +15,7 @@ export default function Classes() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
+  const [view, setView] = useState<'card' | 'table'>('card')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Class | null>(null)
   const [form, setForm] = useState({ name: '', academicYearId: 0, subjectId: 0, room: '', day: '', startTime: '', endTime: '', teacherIds: [] as number[] })
@@ -89,6 +91,7 @@ export default function Classes() {
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
+        <ViewToggle view={view} onChange={setView} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -98,7 +101,7 @@ export default function Classes() {
             <div className="text-3xl mb-2">📅</div>
             <div style={{ fontFamily: 'Outfit, sans-serif' }}>No classes found</div>
           </div>
-        ) : filtered.map(cls => (
+        ) : view === 'card' ? filtered.map(cls => (
           <div key={cls.id} className="bg-white rounded-xl border p-5" style={{ borderColor: '#e2e7f0' }}>
             <div className="flex items-start justify-between mb-3">
               <div className="font-semibold" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{cls.name}</div>
@@ -126,7 +129,40 @@ export default function Classes() {
               </button>
             </div>
           </div>
-        ))}
+        )) : (
+          <div className="col-span-2 bg-white rounded-xl border overflow-hidden" style={{ borderColor: '#e2e7f0' }}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ backgroundColor: '#f8f9fd', borderBottom: '1px solid #e2e7f0' }}>
+                  {['Class', 'Subject', 'Academic Year', 'Room', 'Time', 'Teachers', 'Status', 'Actions'].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(cls => (
+                  <tr key={cls.id} className="border-t hover:bg-gray-50 transition-colors" style={{ borderColor: '#f0f3fa' }}>
+                    <td className="px-4 py-3 font-medium" style={{ color: '#1a1f36' }}>{cls.name}</td>
+                    <td className="px-4 py-3 text-sm" style={{ color: '#374151' }}>{subjectName(cls.subjectId)}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#6b7280' }}>{academicYearName(cls.academicYearId)}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#6b7280' }}>{cls.room}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#6b7280' }}>{cls.day}{cls.startTime ? ` ${cls.startTime} – ${cls.endTime}` : ''}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#6b7280' }}>{cls.teacherIds.map(teacherName).join(', ') || 'Unassigned'}</td>
+                    <td className="px-4 py-3"><Badge variant={statusVariant(cls.status)} dot>{cls.status}</Badge></td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <button onClick={() => openEdit(cls)} className="px-3 py-1.5 text-xs font-medium rounded-lg border hover:bg-gray-50" style={{ borderColor: '#e2e7f0', color: '#374151' }}>Edit</button>
+                        <button onClick={() => toggleStatus(cls.id)} className="px-3 py-1.5 text-xs font-medium rounded-lg border" style={{ borderColor: cls.status === 'active' ? '#fca5a5' : '#e2e7f0', color: cls.status === 'active' ? '#e11d48' : '#059669' }}>
+                          {cls.status === 'active' ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Class' : 'Add Class'} width={560}

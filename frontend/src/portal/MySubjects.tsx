@@ -6,6 +6,7 @@ import { listSubjects, type Subject } from '../api/subjects'
 import { buildSubjectItems, formatDate } from './shared'
 import Modal from '../components/Modal'
 import Badge from '../components/Badge'
+import ViewToggle from '../components/ViewToggle'
 import { useToast } from '../context/ToastContext'
 import { getApiError } from '../api/client'
 
@@ -19,6 +20,7 @@ export default function MySubjects({ session }: MySubjectsProps) {
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [enrollments, setEnrollments] = useState<EnrollmentWithNames[]>([])
   const [loading, setLoading] = useState(true)
+  const [view, setView] = useState<'card' | 'table'>('card')
   const [dropping, setDropping] = useState<{ id: number; name: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -76,6 +78,7 @@ export default function MySubjects({ session }: MySubjectsProps) {
             {activeItems.length} enrolled · {totalCredits} total credits
           </p>
         </div>
+        {activeItems.length > 0 && <ViewToggle view={view} onChange={setView} />}
       </div>
 
       {loading ? (
@@ -90,7 +93,7 @@ export default function MySubjects({ session }: MySubjectsProps) {
           <p className="text-sm font-medium" style={{ color: '#374151' }}>You haven't enrolled in any subjects yet</p>
           <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>Head over to Subject Enrollment to browse available classes.</p>
         </div>
-      ) : (
+      ) : view === 'card' ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {activeItems.map(item => (
             <div key={item.enrollmentId} className="bg-white rounded-xl border p-5 flex flex-col" style={{ borderColor: '#e2e7f0' }}>
@@ -127,6 +130,45 @@ export default function MySubjects({ session }: MySubjectsProps) {
               </div>
             </div>
           ))}
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: '#e2e7f0' }}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ backgroundColor: '#f8f9fd', borderBottom: '1px solid #e2e7f0' }}>
+                {['Subject', 'Class', 'Credits', 'Schedule', 'Room', 'Enrolled', 'Action'].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {activeItems.map(item => (
+                <tr key={item.enrollmentId} className="border-t hover:bg-gray-50 transition-colors" style={{ borderColor: '#f0f3fa' }}>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ backgroundColor: '#eff2ff', color: '#3451c7', fontFamily: 'Outfit, sans-serif' }}>
+                        {item.subjectName.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold truncate" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{item.subjectName}</div>
+                        <div className="text-xs truncate" style={{ color: '#9ca3af' }}>{item.subjectCode}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm font-medium" style={{ color: '#374151' }}>{item.className}</td>
+                  <td className="px-4 py-3"><Badge variant="primary">{item.credits} credits</Badge></td>
+                  <td className="px-4 py-3 text-sm hidden md:table-cell" style={{ color: '#6b7280' }}>{item.schedule}</td>
+                  <td className="px-4 py-3 text-sm hidden sm:table-cell" style={{ color: '#374151' }}>{item.room || 'TBD'}</td>
+                  <td className="px-4 py-3 text-sm hidden lg:table-cell" style={{ color: '#6b7280' }}>{formatDate(item.enrolledAt)}</td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <button onClick={() => setDropping({ id: item.enrollmentId, name: item.subjectName })} className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors" style={{ fontFamily: 'Outfit, sans-serif', color: '#e11d48', backgroundColor: '#fff5f5', borderColor: '#fecaca' }}>
+                      Drop
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
