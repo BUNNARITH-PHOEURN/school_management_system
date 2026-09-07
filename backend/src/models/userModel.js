@@ -13,10 +13,32 @@ async function findById(id) {
   return rows[0];
 }
 
-async function list() {
+async function list(options = {}) {
+  const { where, params } = buildFilters(options);
+  const limit = options.limit ?? null;
+  const offset = options.offset ?? 0;
+  const limitClause = limit ? ` LIMIT ${Number(limit)} OFFSET ${Number(offset)}` : '';
   return query(
-    'SELECT id, name, email, phone, bio, avatar_url, role, status, teacher_id, student_id, created_at, last_login FROM users ORDER BY name',
+    'SELECT id, name, email, phone, bio, avatar_url, role, status, teacher_id, student_id, created_at, last_login FROM users' + where + ' ORDER BY name' + limitClause,
+    params,
   );
+}
+
+function buildFilters(options = {}) {
+  const where = [];
+  const params = [];
+  if (options.search) {
+    where.push('(name LIKE ? OR email LIKE ? OR role LIKE ?)');
+    const like = `%${options.search}%`;
+    params.push(like, like, like);
+  }
+  return { where: where.length ? ` WHERE ${where.join(' AND ')}` : '', params };
+}
+
+async function countUsers(options = {}) {
+  const { where, params } = buildFilters(options);
+  const rows = await query(`SELECT COUNT(*) AS total FROM users${where}`, params);
+  return Number(rows[0]?.total ?? 0);
 }
 
 async function create({ name, email, passwordHash, role, avatarUrl, studentId }) {
@@ -66,4 +88,4 @@ async function remove(id) {
   return result.affectedRows > 0;
 }
 
-module.exports = { findByEmail, findById, list, update, updateLastLogin, create, remove };
+module.exports = { findByEmail, findById, list, countUsers, update, updateLastLogin, create, remove };

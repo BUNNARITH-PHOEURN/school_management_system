@@ -226,6 +226,30 @@ async function main() {
     }
   }
 
+  // ---- subject fees (per subject per academic year) ----------------------
+  for (const subject of subjectIds) {
+    for (const yearId of [2, 3]) {
+      await connection.query(
+        'INSERT INTO subject_fees (subject_id, academic_year_id, fee) VALUES (?, ?, ?)',
+        [subject.id, yearId, rand() < 0.2 ? 0 : randInt(80, 320)],
+      );
+    }
+  }
+
+  // Map a class id to its fee from the subject+year lookup.
+  const classFee = new Map();
+  for (const classId of classRows) {
+    const [row] = await connection.query(
+      'SELECT subject_id, academic_year_id FROM classes WHERE id = ?',
+      [classId],
+    );
+    const [feeRow] = await connection.query(
+      'SELECT fee FROM subject_fees WHERE subject_id = ? AND academic_year_id = ?',
+      [row[0].subject_id, row[0].academic_year_id],
+    );
+    classFee.set(classId, feeRow[0]?.fee ?? 0);
+  }
+
   // ---- enrollments (every student into 3–4 classes) ----------------------
   const enrollmentPairs = [];
   for (let studentId = 1; studentId <= 60; studentId++) {
@@ -234,11 +258,27 @@ async function main() {
     while (picked.size < nClasses) picked.add(pick(classRows));
     for (const classId of picked) {
       const status = rand() < 0.93 ? 'approved' : 'dropped';
+      const approved = status === 'approved';
+      const docsOk = approved ? 1 : 0;
+      const paymentStatus = approved ? (rand() < 0.8 ? 'paid' : 'unpaid') : 'unpaid';
       await connection.query(
-        'INSERT INTO enrollments (student_id, class_id, enrolled_at, status) VALUES (?, ?, ?, ?)',
-        [studentId, classId, rand() < 0.8 ? '2025-08-10' : '2025-08-12', status],
+        `INSERT INTO enrollments
+           (student_id, class_id, enrolled_at, status, docs_declared,
+            doc_grade12, doc_transcript, doc_idcopy, amount, payment_status)
+         VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+        [
+          studentId,
+          classId,
+          rand() < 0.8 ? '2025-08-10' : '2025-08-12',
+          status,
+          docsOk,
+          docsOk,
+          docsOk,
+          classFee.get(classId) ?? 0,
+          paymentStatus,
+        ],
       );
-      if (status === 'approved') enrollmentPairs.push([studentId, classId]);
+      if (approved) enrollmentPairs.push([studentId, classId]);
     }
   }
 
@@ -292,19 +332,22 @@ async function main() {
   }
 
   // ---- users --------------------------------------------------------------
-  // teacher_id links moderator accounts to the teacher whose classes they own.
+  // teacher_id links moderator/teacher accounts to the teacher whose classes they own.
   // Admin (teacher_id NULL) can see and manage every class.
-  for (const [name, email, role, lastLogin, teacherId] of [
-    ['Alexandra Chen', 'admin@school.edu', 'admin', '2026-08-23 09:12:00', null],
-    ['Benjamin Torres', 'b.torres@school.edu', 'moderator', '2026-08-22 14:40:00', 1],
-    ['Carmen Liu', 'c.liu@school.edu', 'moderator', '2026-08-21 11:05:00', 2],
-    ['Daniel Obi', 'd.obi@school.edu', 'moderator', '2026-06-20 16:30:00', 3],
-    ['Esra Yilmaz', 'e.yilmaz@school.edu', 'moderator', '2026-08-19 08:22:00', 4],
-    ['Frank Muller', 'f.muller@school.edu', 'moderator', null, 5],
+  for (const [name, email, role, lastLogin, teacherId, studentId] of [
+    ['Alexandra Chen', 'admin@school.edu', 'admin', '2026-08-23 09:12:00', null, null],
+    ['Benjamin Torres', 'b.torres@school.edu', 'moderator', '2026-08-22 14:40:00', 1, null],
+    ['Carmen Liu', 'c.liu@school.edu', 'moderator', '2026-08-21 11:05:00', 2, null],
+    ['Daniel Obi', 'd.obi@school.edu', 'moderator', '2026-06-20 16:30:00', 3, null],
+    ['Esra Yilmaz', 'e.yilmaz@school.edu', 'moderator', '2026-08-19 08:22:00', 4, null],
+    ['Frank Muller', 'f.muller@school.edu', 'moderator', null, 5, null],
+    ['Grace Kim', 'g.kim@school.edu', 'teacher', '2026-08-20 10:15:00', 6, null],
+    ['Hiroshi Tanaka', 'h.tanaka@school.edu', 'teacher', null, 7, null],
+    ['Student Login', 'student@school.edu', 'student', '2026-08-20 09:30:00', null, 1],
   ]) {
     await connection.query(
-      'INSERT INTO users (name, email, role, status, last_login, password_hash, teacher_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, email, role, name === 'Daniel Obi' ? 'inactive' : 'active', lastLogin, hashPassword('password'), teacherId],
+      'INSERT INTO users (name, email, role, status, last_login, password_hash, teacher_id, student_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, email, role, name === 'Daniel Obi' ? 'inactive' : 'active', lastLogin, hashPassword('password'), teacherId, studentId],
     );
   }
 

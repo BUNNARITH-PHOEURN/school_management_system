@@ -2,30 +2,42 @@ const userModel = require('../models/userModel');
 const studentModel = require('../models/studentModel');
 const teacherModel = require('../models/teacherModel');
 const { hashPassword } = require('../utils/password');
+const { paginate, pageResponse } = require('../utils/pagination');
 
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const toUser = (row) => ({ id: row.id, name: row.name, email: row.email, role: row.role, status: row.status, createdAt: row.created_at, lastLogin: row.last_login, teacherId: row.teacher_id ?? null, studentId: row.student_id ?? null });
 
-const VALID_ROLES = ['admin', 'moderator', 'student'];
+const VALID_ROLES = ['admin', 'moderator', 'teacher', 'student'];
 
 // Link the user account to a matching student or teacher record using the email,
-// so the account can act as that person. For students a record is auto-created
-// when missing. Returns the link column/value pairs.
+// so the account can act as that person. A matching record is auto-created when
+// missing. Returns the link column/value pairs.
 async function resolveLink(role, email, user) {
   if (role === 'student') {
     const student = await studentModel.ensureStudentForUser({ id: user.id, name: user.name, email });
     return { linked: true, type: 'student', fields: { student_id: student, teacher_id: null } };
   }
-  if (role === 'moderator') {
-    const teacher = await teacherModel.getTeacherByEmail(email);
-    if (!teacher) return { linked: false, type: 'teacher' };
-    return { linked: true, type: 'teacher', fields: { teacher_id: teacher.id, student_id: null } };
+  if (role === 'moderator' || role === 'teacher') {
+    const teacher = await teacherModel.ensureTeacherForUser({ id: user.id, name: user.name, teacher_id: user.teacher_id, email });
+    return { linked: true, type: 'teacher', fields: { teacher_id: teacher, student_id: null } };
   }
   // admin (and any other role) — clear both links
   return { linked: false, type: null, fields: { teacher_id: null, student_id: null } };
 }
 
-exports.list = asyncHandler(async (req, res) => res.json({ users: (await userModel.list()).map(toUser) }));
+exports.list = asyncHandler(async (req, res) => {
+  const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
+  if (hasPaging) {
+    const { page, limit, offset } = paginate(req.query);
+    const filters = { search: typeof req.query.search === 'string' ? req.query.search.trim() : undefined };
+    const [rows, total] = await Promise.all([
+      userModel.list({ limit, offset, ...filters }),
+      userModel.countUsers(filters),
+    ]);
+    return res.json({ users: rows.map(toUser), total, page, totalPages: total === 0 ? 0 : Math.ceil(total / limit) });
+  }
+  res.json({ users: (await userModel.list()).map(toUser) });
+});
 
 exports.create = asyncHandler(async (req, res) => {
   const { name, email, password, role = 'moderator' } = req.body || {};

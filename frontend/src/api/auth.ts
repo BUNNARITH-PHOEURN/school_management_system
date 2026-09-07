@@ -1,6 +1,6 @@
 import { apiClient } from './client'
 
-export type Role = 'admin' | 'moderator' | 'student'
+export type Role = 'admin' | 'moderator' | 'teacher' | 'student'
 
 export interface SessionUser {
   id: number
@@ -14,6 +14,7 @@ export interface SessionUser {
   createdAt?: string | null
   avatarUrl?: string
   studentId?: number
+  teacherId?: number
 }
 
 export interface StudentRegistration {

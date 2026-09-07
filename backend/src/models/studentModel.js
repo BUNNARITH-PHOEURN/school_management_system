@@ -14,13 +14,43 @@ const STUDENT_FIELDS = [
   'enrolled_at',
 ];
 
-async function getAllStudents() {
+async function getAllStudents(options = {}) {
+  const { where, params } = buildFilters(options);
+  const limit = options.limit ?? null;
+  const offset = options.offset ?? 0;
+  const limitClause = limit ? ` LIMIT ${Number(limit)} OFFSET ${Number(offset)}` : '';
   return query(
     `SELECT id, code, first_name, last_name, email, phone, department_id, gender,
       DATE_FORMAT(date_of_birth, '%Y-%m-%d') AS date_of_birth, address, status,
       DATE_FORMAT(enrolled_at, '%Y-%m-%d') AS enrolled_at, created_at
-     FROM students ORDER BY id DESC`,
+     FROM students${where} ORDER BY id DESC${limitClause}`,
+    params,
   );
+}
+
+function buildFilters(options = {}) {
+  const where = [];
+  const params = [];
+  if (options.status && options.status !== 'all') {
+    where.push('status = ?');
+    params.push(options.status);
+  }
+  if (options.department_id && options.department_id !== 'all') {
+    where.push('department_id = ?');
+    params.push(options.department_id);
+  }
+  if (options.search) {
+    where.push('(first_name LIKE ? OR last_name LIKE ? OR code LIKE ? OR email LIKE ?)');
+    const like = `%${options.search}%`;
+    params.push(like, like, like, like);
+  }
+  return { where: where.length ? ` WHERE ${where.join(' AND ')}` : '', params };
+}
+
+async function countStudents(options = {}) {
+  const { where, params } = buildFilters(options);
+  const rows = await query(`SELECT COUNT(*) AS total FROM students${where}`, params);
+  return Number(rows[0]?.total ?? 0);
 }
 
 async function getStudentById(id) {
@@ -115,6 +145,7 @@ async function deleteStudent(id) {
 
 module.exports = {
   getAllStudents,
+  countStudents,
   getStudentById,
   getStudentByEmail,
   ensureStudentForUser,

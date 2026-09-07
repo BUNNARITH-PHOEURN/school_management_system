@@ -20,6 +20,7 @@ function toSessionUser(row) {
   if (row.avatar_url != null) user.avatarUrl = row.avatar_url;
   if (row.created_at != null) user.createdAt = row.created_at;
   if (row.student_id != null) user.studentId = row.student_id;
+  if (row.teacher_id != null) user.teacherId = row.teacher_id;
 
   return user;
 }

@@ -13,8 +13,37 @@ const TEACHER_FIELDS = [
   'joined_at',
 ];
 
-async function getAllTeachers() {
-  return query('SELECT * FROM teachers ORDER BY id DESC');
+async function getAllTeachers(options = {}) {
+  const { where, params } = buildFilters(options);
+  const limit = options.limit ?? null;
+  const offset = options.offset ?? 0;
+  const limitClause = limit ? ` LIMIT ${Number(limit)} OFFSET ${Number(offset)}` : '';
+  return query(`SELECT * FROM teachers${where} ORDER BY id DESC${limitClause}`, params);
+}
+
+function buildFilters(options = {}) {
+  const where = [];
+  const params = [];
+  if (options.status && options.status !== 'all') {
+    where.push('status = ?');
+    params.push(options.status);
+  }
+  if (options.department_id && options.department_id !== 'all') {
+    where.push('department_id = ?');
+    params.push(options.department_id);
+  }
+  if (options.search) {
+    where.push('(first_name LIKE ? OR last_name LIKE ? OR code LIKE ? OR email LIKE ? OR specialization LIKE ?)');
+    const like = `%${options.search}%`;
+    params.push(like, like, like, like, like);
+  }
+  return { where: where.length ? ` WHERE ${where.join(' AND ')}` : '', params };
+}
+
+async function countTeachers(options = {}) {
+  const { where, params } = buildFilters(options);
+  const rows = await query(`SELECT COUNT(*) AS total FROM teachers${where}`, params);
+  return Number(rows[0]?.total ?? 0);
 }
 
 async function getTeacherById(id) {
@@ -28,6 +57,31 @@ async function getTeacherByEmail(email) {
     [email],
   );
   return rows[0];
+}
+
+// Ensure a teacher record exists for a user account and return its id.
+// If no teacher matches by email, a minimal record is created from the name.
+async function ensureTeacherForUser(user) {
+  const existing = await getTeacherByEmail(user.email);
+  if (existing) {
+    if (user.teacher_id !== existing.id) {
+      await query('UPDATE users SET teacher_id = ? WHERE id = ?', [existing.id, user.id]);
+    }
+    return existing.id;
+  }
+
+  const nameParts = String(user.name || '').trim().split(/\s+/);
+  const firstName = nameParts[0] || 'Teacher';
+  const lastName = nameParts.slice(1).join(' ') || firstName;
+
+  const created = await createTeacher({
+    first_name: firstName,
+    last_name: lastName,
+    email: user.email,
+  });
+
+  await query('UPDATE users SET teacher_id = ? WHERE id = ?', [created.id, user.id]);
+  return created.id;
 }
 
 async function createTeacher(teacher) {
@@ -80,8 +134,10 @@ async function linkUser(userId, teacherId) {
 
 module.exports = {
   getAllTeachers,
+  countTeachers,
   getTeacherById,
   getTeacherByEmail,
+  ensureTeacherForUser,
   createTeacher,
   updateTeacher,
   deleteTeacher,
