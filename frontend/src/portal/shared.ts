@@ -23,9 +23,19 @@ export interface SubjectItem {
   subjectName: string
   subjectCode: string
   credits: number
+  academicYearId: number
   day: string
   schedule: string
   room: string
+  startTime: string
+  endTime: string
+  amount: number
+  paymentStatus: string
+  docGrade12?: boolean
+  docTranscript?: boolean
+  docIdCopy?: boolean
+  docsDeclared?: boolean
+  notes?: string | null
 }
 
 export function buildSubjectItems(
@@ -47,9 +57,19 @@ export function buildSubjectItems(
       subjectName: subject?.name ?? (cls ? cls.name : 'Subject'),
       subjectCode: subject?.code ?? '',
       credits: subject?.credits ?? 0,
+      academicYearId: cls?.academicYearId ?? 0,
       day: cls?.day ?? '',
       schedule: cls ? classSchedule(cls) : 'Schedule TBD',
       room: cls?.room ?? '',
+      startTime: cls?.startTime ?? '',
+      endTime: cls?.endTime ?? '',
+      amount: enrollment.amount ?? 0,
+      paymentStatus: enrollment.paymentStatus ?? 'unpaid',
+      docGrade12: enrollment.docGrade12,
+      docTranscript: enrollment.docTranscript,
+      docIdCopy: enrollment.docIdCopy,
+      docsDeclared: enrollment.docsDeclared,
+      notes: enrollment.notes,
     }
   })
 }

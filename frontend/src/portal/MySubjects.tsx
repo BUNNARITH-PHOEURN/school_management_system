@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SessionUser } from '../api/auth'
-import { listEnrollments, updateEnrollment, type EnrollmentWithNames } from '../api/enrollments'
+import { listEnrollments, updateEnrollment, payEnrollment, type EnrollmentWithNames } from '../api/enrollments'
 import { listClasses, type Class } from '../api/classes'
 import { listSubjects, type Subject } from '../api/subjects'
 import { buildSubjectItems, formatDate } from './shared'
-import Modal from '../components/Modal'
+import Modal, { FormField, inputClass, inputStyle } from '../components/Modal'
 import Badge from '../components/Badge'
 import ViewToggle from '../components/ViewToggle'
 import { useToast } from '../context/ToastContext'
@@ -23,6 +23,8 @@ export default function MySubjects({ session }: MySubjectsProps) {
   const [view, setView] = useState<'card' | 'table'>('card')
   const [dropping, setDropping] = useState<{ id: number; name: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [paying, setPaying] = useState<EnrollmentWithNames | null>(null)
+  const [payForm, setPayForm] = useState({ method: 'Credit Card', reference: '' })
 
   const load = async () => {
     setLoading(true)
@@ -59,12 +61,28 @@ export default function MySubjects({ session }: MySubjectsProps) {
     if (!dropping) return
     setSubmitting(true)
     try {
-      await updateEnrollment(dropping.id, 'dropped')
+      await updateEnrollment(dropping.id, { status: 'dropped' })
       toast('success', `Dropped ${dropping.name}.`)
       setDropping(null)
       await load()
     } catch (err) {
       toast('error', getApiError(err, 'Unable to drop this subject.'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handlePay = async () => {
+    if (!paying) return
+    setSubmitting(true)
+    try {
+      await payEnrollment(paying.id, { method: payForm.method, reference: payForm.reference.trim() || undefined })
+      toast('success', `Payment recorded for ${paying.subjectName}.`)
+      setPaying(null)
+      setPayForm({ method: 'Credit Card', reference: '' })
+      await load()
+    } catch (err) {
+      toast('error', getApiError(err, 'Unable to process payment.'))
     } finally {
       setSubmitting(false)
     }
@@ -116,7 +134,12 @@ export default function MySubjects({ session }: MySubjectsProps) {
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold flex-shrink-0" style={{ backgroundColor: '#eff2ff', color: '#3451c7', fontFamily: 'Outfit, sans-serif' }}>
                   {item.subjectName.charAt(0)}
                 </div>
-                <Badge variant="success">Enrolled</Badge>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge variant="success">Enrolled</Badge>
+                  {item.paymentStatus === 'unpaid' && (
+                    <Badge variant="warning">Unpaid · ${Number(item.amount || 0).toFixed(2)}</Badge>
+                  )}
+                </div>
               </div>
               <h3 className="text-sm font-semibold mt-3" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{item.subjectName}</h3>
               <div className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>{item.subjectCode} · {item.credits} credits</div>
@@ -134,10 +157,19 @@ export default function MySubjects({ session }: MySubjectsProps) {
                   Enrolled {formatDate(item.enrolledAt)}
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t flex-1 flex items-end" style={{ borderColor: '#f0f3fa' }}>
+              <div className="mt-4 pt-4 border-t flex-1 flex items-end gap-2" style={{ borderColor: '#f0f3fa' }}>
+                {item.paymentStatus === 'unpaid' && (
+                  <button
+                    onClick={() => setPaying(enrollments.find(e => e.id === item.enrollmentId) ?? null)}
+                    className="flex-1 py-2 rounded-lg text-xs font-semibold text-white transition-colors"
+                    style={{ fontFamily: 'Outfit, sans-serif', backgroundColor: '#b45309' }}
+                  >
+                    Pay Now · ${Number(item.amount || 0).toFixed(2)}
+                  </button>
+                )}
                 <button
                   onClick={() => setDropping({ id: item.enrollmentId, name: item.subjectName })}
-                  className="w-full py-2 rounded-lg text-xs font-semibold transition-colors"
+                  className={`py-2 rounded-lg text-xs font-semibold transition-colors ${item.paymentStatus === 'unpaid' ? 'flex-1' : 'w-full'}`}
                   style={{ fontFamily: 'Outfit, sans-serif', color: '#e11d48', backgroundColor: '#fff5f5', border: '1px solid #fecaca' }}
                 >
                   Drop Subject
@@ -176,6 +208,11 @@ export default function MySubjects({ session }: MySubjectsProps) {
                   <td className="px-4 py-3 text-sm hidden sm:table-cell" style={{ color: '#374151' }}>{item.room || 'TBD'}</td>
                   <td className="px-4 py-3 text-sm hidden lg:table-cell" style={{ color: '#6b7280' }}>{formatDate(item.enrolledAt)}</td>
                   <td className="px-4 py-3 text-right whitespace-nowrap">
+                    {item.paymentStatus === 'unpaid' && (
+                      <button onClick={() => setPaying(enrollments.find(e => e.id === item.enrollmentId) ?? null)} className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors mr-2" style={{ fontFamily: 'Outfit, sans-serif', color: '#b45309', backgroundColor: '#fef3c7', borderColor: '#fcd34d' }}>
+                        Pay · ${Number(item.amount || 0).toFixed(2)}
+                      </button>
+                    )}
                     <button onClick={() => setDropping({ id: item.enrollmentId, name: item.subjectName })} className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors" style={{ fontFamily: 'Outfit, sans-serif', color: '#e11d48', backgroundColor: '#fff5f5', borderColor: '#fecaca' }}>
                       Drop
                     </button>
@@ -206,6 +243,56 @@ export default function MySubjects({ session }: MySubjectsProps) {
         <p className="text-sm leading-relaxed" style={{ color: '#6b7280' }}>
           Are you sure you want to drop <strong style={{ color: '#1a1f36' }}>{dropping?.name}</strong>? You can re-enroll later if you change your mind.
         </p>
+      </Modal>
+
+      <Modal
+        open={paying !== null}
+        onClose={() => setPaying(null)}
+        title="Online Payment"
+        width={440}
+        footer={
+          <>
+            <button onClick={() => setPaying(null)} className="px-4 py-2 text-sm font-medium rounded-lg border" style={{ borderColor: '#e2e7f0', color: '#374151', fontFamily: 'Outfit, sans-serif' }}>
+              Cancel
+            </button>
+            <button onClick={handlePay} disabled={submitting} className="px-4 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-60" style={{ backgroundColor: '#059669', fontFamily: 'Outfit, sans-serif' }}>
+              {submitting ? 'Processing…' : 'Confirm Payment'}
+            </button>
+          </>
+        }
+      >
+        {paying && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 rounded-xl p-4" style={{ backgroundColor: '#f8f9fd' }}>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold flex-shrink-0" style={{ backgroundColor: '#eff2ff', color: '#3451c7', fontFamily: 'Outfit, sans-serif' }}>
+                {paying.subjectName.charAt(0)}
+              </div>
+              <div>
+                <div className="text-sm font-semibold" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{paying.subjectName}</div>
+                <div className="text-xs" style={{ color: '#9ca3af' }}>{paying.className}</div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border px-4 py-3" style={{ borderColor: '#e2e7f0' }}>
+              <span className="text-sm" style={{ color: '#6b7280' }}>Amount due</span>
+              <span className="text-lg font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>${Number(paying.amount || 0).toFixed(2)}</span>
+            </div>
+
+            <FormField label="Payment Method" required>
+              <select value={payForm.method} onChange={e => setPayForm(f => ({ ...f, method: e.target.value }))} className={inputClass} style={inputStyle}>
+                <option>Credit Card</option>
+                <option>Bank Transfer</option>
+                <option>Mobile Money</option>
+              </select>
+            </FormField>
+            <FormField label="Transaction Reference">
+              <input value={payForm.reference} onChange={e => setPayForm(f => ({ ...f, reference: e.target.value }))} className={inputClass} style={inputStyle} placeholder="e.g. receipt / transaction id" />
+            </FormField>
+            <p className="text-xs" style={{ color: '#9ca3af' }}>
+              This is a simulated payment. Once confirmed, your enrollment is marked as paid.
+            </p>
+          </div>
+        )}
       </Modal>
     </div>
   )
