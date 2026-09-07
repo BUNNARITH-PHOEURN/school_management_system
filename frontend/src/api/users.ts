@@ -13,6 +13,11 @@ export interface UserRecord {
 }
 
 export const listUsers = async () => (await apiClient.get<{ users: UserRecord[] }>('/users')).data
+export const listUsersPage = async (params: { page: number; limit: number; search?: string }) => {
+  const query: Record<string, string> = { page: String(params.page), limit: String(params.limit) }
+  if (params.search) query.search = params.search
+  return (await apiClient.get<{ users: UserRecord[]; total: number; page: number; totalPages: number }>('/users', { params: query })).data
+}
 export const createUser = async (data: { name: string; email: string; role: Role; password: string }) => (await apiClient.post<{ user: UserRecord }>('/users', data)).data
 export const updateUser = async (id: number, data: { name: string; email: string; role: Role }) => (await apiClient.put<{ user: UserRecord }>(`/users/${id}`, data)).data
 export const updateUserStatus = async (id: number, status: UserRecord['status']) => (await apiClient.patch<{ user: UserRecord }>(`/users/${id}/status`, { status })).data

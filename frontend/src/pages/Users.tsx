@@ -1,23 +1,38 @@
 import { useEffect, useState } from 'react'
-import { createUser, listUsers, updateUser, updateUserStatus, type UserRecord } from '../api/users'
+import { createUser, listUsersPage, updateUser, updateUserStatus, type UserRecord } from '../api/users'
 import type { Role } from '../api/auth'
 import { getApiError } from '../api/client'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
+import Pagination from '../components/Pagination'
+
+const PAGE_SIZE = 10
 
 export default function Users() {
   const [data, setData] = useState<UserRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<UserRecord | null>(null)
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [form, setForm] = useState({ name: '', email: '', role: 'moderator' as Role, password: '' })
 
-  useEffect(() => { listUsers().then(result => setData(result.users)).catch(err => setError(err instanceof Error ? err.message : 'Unable to load users')).finally(() => setLoading(false)) }, [])
+  const resetPage = () => setPage(1)
 
-  const filtered = data.filter(u => `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(search.toLowerCase()))
+  useEffect(() => {
+    setLoading(true)
+    listUsersPage({ page, limit: PAGE_SIZE, search })
+      .then(result => { setData(result.users); setTotalItems(result.total); setTotalPages(Math.max(1, result.totalPages)) })
+      .catch(err => setError(err instanceof Error ? err.message : 'Unable to load users'))
+      .finally(() => setLoading(false))
+  }, [page, search])
+
+  const safePage = Math.min(page, totalPages)
+  const filtered = data
 
   const openCreate = () => { setEditing(null); setForm({ name: '', email: '', role: 'moderator', password: '' }); setModalOpen(true) }
   const openEdit = (u: UserRecord) => { setEditing(u); setForm({ name: u.name, email: u.email, role: u.role, password: '' }); setModalOpen(true) }
@@ -49,7 +64,7 @@ export default function Users() {
       <div className="bg-white rounded-xl border p-4 flex items-center gap-3" style={{ borderColor: '#e2e7f0' }}>
         <div className="relative flex-1">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users…" className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0' }} />
+          <input value={search} onChange={e => { setSearch(e.target.value); resetPage() }} placeholder="Search users…" className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0' }} />
         </div>
       </div>
 
@@ -98,6 +113,7 @@ export default function Users() {
             ))}
           </tbody>
         </table>
+        <Pagination page={safePage} totalPages={totalPages} totalItems={totalItems} pageSize={PAGE_SIZE} onPageChange={setPage} />
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit User' : 'Add User'} width={440}
@@ -114,6 +130,7 @@ export default function Users() {
           <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as Role }))} className={inputClass} style={inputStyle}>
             <option value="admin">Admin</option>
             <option value="moderator">Moderator</option>
+            <option value="teacher">Teacher</option>
             <option value="student">Student</option>
           </select>
         </FormField>

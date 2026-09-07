@@ -78,9 +78,25 @@ function fromApi(row: ApiStudent): Student {
   }
 }
 
+export interface Paginated<T> {
+  data: T[]
+  total: number
+  page: number
+  totalPages: number
+}
+
 export async function listStudents(): Promise<Student[]> {
   const { data } = await apiClient.get<ApiStudent[]>(BASE_URL)
   return data.map(fromApi)
+}
+
+export async function listStudentsPage(params: { page: number; limit: number; search?: string; status?: string; departmentId?: number | 'all' }): Promise<Paginated<Student>> {
+  const query: Record<string, string> = { page: String(params.page), limit: String(params.limit) }
+  if (params.search) query.search = params.search
+  if (params.status) query.status = params.status
+  if (params.departmentId && params.departmentId !== 'all') query.department_id = String(params.departmentId)
+  const { data } = await apiClient.get<Paginated<ApiStudent>>(BASE_URL, { params: query })
+  return { ...data, data: data.data.map(fromApi) }
 }
 
 export async function createStudent(payload: StudentPayload): Promise<Student> {

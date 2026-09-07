@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { listDepartments, type DepartmentRecord } from '../api/departments'
-import { createSubject, listSubjects, updateSubject, updateSubjectStatus, type Subject } from '../api/subjects'
+import { createSubject, listSubjects, listSubjectsPage, updateSubject, updateSubjectStatus, type Subject } from '../api/subjects'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
 import ViewToggle from '../components/ViewToggle'
+import Pagination from '../components/Pagination'
+
+const PAGE_SIZE = 12
 
 export default function Subjects() {
   const [data, setData] = useState<Subject[]>([])
@@ -11,6 +14,9 @@ export default function Subjects() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [filterDept, setFilterDept] = useState<number | 'all'>('all')
+  const [page, setPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [view, setView] = useState<'card' | 'table'>('table')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Subject | null>(null)
@@ -19,18 +25,17 @@ export default function Subjects() {
 
   const getDepartmentName = (id: number | null) => departments.find(department => department.id === id)?.name ?? 'Unassigned'
 
-  const filtered = data.filter(s =>
-    (filterDept === 'all' || s.department_id === filterDept) &&
-    `${s.name} ${s.code}`.toLowerCase().includes(search.toLowerCase())
-  )
+  const resetPage = () => setPage(1)
+  const filtered = data
+  const safePage = Math.min(page, totalPages)
 
   const openCreate = () => { setEditing(null); setForm({ name: '', code: '', credits: 3, description: '', department_id: departments[0]?.id ?? 0 }); setModalOpen(true) }
   const openEdit = (s: Subject) => { setEditing(s); setForm({ name: s.name, code: s.code, credits: s.credits, description: s.description ?? '', department_id: s.department_id ?? 0 }); setModalOpen(true) }
   useEffect(() => {
-    Promise.all([listSubjects(), listDepartments()])
-      .then(([subjects, departmentResult]) => { setData(subjects); setDepartments(departmentResult.departments) })
+    Promise.all([listSubjectsPage({ page, limit: PAGE_SIZE, search, departmentId: filterDept }), listDepartments()])
+      .then(([result, departmentResult]) => { setData(result.data); setTotalItems(result.total); setTotalPages(Math.max(1, result.totalPages)); setDepartments(departmentResult.departments) })
       .catch(err => setError(err instanceof Error ? err.message : 'Unable to load subjects'))
-  }, [])
+  }, [page, search, filterDept])
   const handleSave = async () => {
     try {
       const saved = editing ? await updateSubject(editing.id, form) : await createSubject({ ...form, status: 'active' })
@@ -62,9 +67,9 @@ export default function Subjects() {
       <div className="bg-white rounded-xl border p-4 flex flex-wrap gap-3" style={{ borderColor: '#e2e7f0' }}>
         <div className="relative flex-1 min-w-40">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search subjects…" className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0' }} />
+          <input value={search} onChange={e => { setSearch(e.target.value); resetPage() }} placeholder="Search subjects…" className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0' }} />
         </div>
-        <select value={filterDept} onChange={e => setFilterDept(e.target.value === 'all' ? 'all' : Number(e.target.value))} className="px-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0', color: '#374151' }}>
+        <select value={filterDept} onChange={e => { setFilterDept(e.target.value === 'all' ? 'all' : Number(e.target.value)); resetPage() }} className="px-3 py-2 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0', color: '#374151' }}>
           <option value="all">All Departments</option>
           {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
@@ -144,6 +149,8 @@ export default function Subjects() {
           </table>
         </div>
       )}
+
+      <Pagination page={safePage} totalPages={totalPages} totalItems={totalItems} pageSize={PAGE_SIZE} onPageChange={setPage} />
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Subject' : 'Add Subject'}
         footer={

@@ -1,16 +1,32 @@
 import { useEffect, useState } from 'react'
 import { getDepartmentName, type Status } from '../data/mockData'
-import { createTeacher, listTeachers, updateTeacher, type Teacher } from '../api/teachers'
+import { createTeacher, listTeachers, listTeachersPage, updateTeacher, type Teacher } from '../api/teachers'
 import { listDepartments, type DepartmentRecord } from '../api/departments'
 import { listUsers, type UserRecord } from '../api/users'
+import { listClasses, type Class } from '../api/classes'
+import { listSubjects, type Subject } from '../api/subjects'
+import { listEnrollments, type EnrollmentWithNames } from '../api/enrollments'
+import { listAttendance, type AttendanceWithNames, type AttendanceStatus } from '../api/attendance'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
 import Autocomplete, { type AutocompleteOption } from '../components/Autocomplete'
 import Pagination from '../components/Pagination'
 import { SkeletonTable, EmptyState } from '../components/Skeleton'
 import { useToast } from '../context/ToastContext'
+import ScheduleGrid, { type ScheduleSlot } from '../portal/ScheduleGrid'
 
 const PAGE_SIZE = 7
+
+function initials(name: string) {
+  return name.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+}
+
+const ATTENDANCE_COLORS: Record<AttendanceStatus, { bg: string; fg: string; label: string }> = {
+  present: { bg: '#d1fae5', fg: '#065f46', label: 'Present' },
+  absent: { bg: '#ffe4e6', fg: '#9f1239', label: 'Absent' },
+  late: { bg: '#fef3c7', fg: '#92400e', label: 'Late' },
+  permission: { bg: '#dbe4ff', fg: '#3451c7', label: 'Permission' },
+}
 
 export default function Teachers() {
   const { toast } = useToast()
@@ -22,21 +38,36 @@ export default function Teachers() {
   const [filterStatus, setFilterStatus] = useState<'all' | Status>('all')
   const [filterDept, setFilterDept] = useState<number | 'all'>('all')
   const [page, setPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Teacher | null>(null)
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [viewTeacher, setViewTeacher] = useState<Teacher | null>(null)
+  const [classes, setClasses] = useState<Class[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [enrollments, setEnrollments] = useState<EnrollmentWithNames[]>([])
+  const [attendance, setAttendance] = useState<AttendanceWithNames[]>([])
   const [form, setForm] = useState<{
     userId: number; firstName: string; lastName: string; email: string; phone: string
     departmentId: number; gender: 'male' | 'female' | 'other'; specialization: string
   }>({ userId: 0, firstName: '', lastName: '', email: '', phone: '', departmentId: 1, gender: 'male', specialization: '' })
 
-  const filtered = data.filter(t =>
-    (filterStatus === 'all' || t.status === filterStatus) &&
-    (filterDept === 'all' || t.departmentId === filterDept) &&
-    `${t.firstName} ${t.lastName} ${t.code} ${t.email} ${t.specialization}`.toLowerCase().includes(search.toLowerCase())
-  )
   const departmentName = (id: number) => departments.find(d => d.id === id)?.name ?? getDepartmentName(id)
+  const subjectName = (id: number) => subjects.find(s => s.id === id)?.name ?? 'Subject'
+  const subjectCode = (id: number) => subjects.find(s => s.id === id)?.code ?? ''
+
+  const teacherClasses = viewTeacher ? classes.filter(c => c.teacherIds.includes(viewTeacher.id)) : []
+  const teacherSlots: ScheduleSlot[] = teacherClasses.map((cls, i) => ({
+    id: `c${cls.id}`,
+    name: cls.name,
+    detail: subjectCode(cls.subjectId) || undefined,
+    day: cls.day,
+    startTime: cls.startTime,
+    endTime: cls.endTime,
+    room: cls.room,
+    colorKey: cls.subjectId || i,
+  }))
   const availableUsers = users.filter(u =>
     u.teacherId === editing?.id || (u.role === 'moderator' && u.status === 'active')
   )
@@ -44,9 +75,8 @@ export default function Teachers() {
     const linkedTeacher = u.teacherId ? data.find(t => t.id === u.teacherId) : undefined
     return { id: u.id, label: u.name, sublabel: `${u.email}${linkedTeacher ? ` · linked to ${linkedTeacher.firstName} ${linkedTeacher.lastName}` : ''}` }
   })
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
-  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const paginated = data
 
   const applyUser = (userId: number) => {
     const u = users.find(x => x.id === userId)
@@ -73,14 +103,21 @@ export default function Teachers() {
     setModalOpen(true)
   }
   useEffect(() => {
-    Promise.all([listTeachers(), listDepartments(), listUsers()])
-      .then(([teacherRows, departmentBody, userBody]) => {
-        setData(teacherRows)
+    Promise.all([listTeachersPage({ page, limit: PAGE_SIZE, search, status: filterStatus, departmentId: filterDept }), listDepartments(), listUsers(), listClasses(), listSubjects(), listEnrollments(), listAttendance()])
+      .then(([teacherResult, departmentBody, userBody, classRows, subjectRows, enrollmentRows, attendanceRows]) => {
+        setData(teacherResult.data)
+        setTotalItems(teacherResult.total)
+        setTotalPages(Math.max(1, teacherResult.totalPages))
         setDepartments(departmentBody.departments)
         setUsers(userBody.users)
+        setClasses(classRows)
+        setSubjects(subjectRows)
+        setEnrollments(enrollmentRows)
+        setAttendance(attendanceRows)
       })
       .catch(err => setError(err instanceof Error ? err.message : 'Unable to load teachers'))
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, filterStatus, filterDept])
   const handleSave = async () => {
     if (!form.departmentId || !departments.some(d => d.id === form.departmentId)) {
       setError('Please create and select a valid department before adding a teacher.')
@@ -185,7 +222,7 @@ export default function Teachers() {
             </tbody>
           </table>
         </div>
-        <Pagination page={safePage} totalPages={totalPages} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+        <Pagination page={safePage} totalPages={totalPages} totalItems={totalItems} pageSize={PAGE_SIZE} onPageChange={setPage} />
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit — ${editing.firstName} ${editing.lastName}` : 'Add New Teacher'}
@@ -222,9 +259,9 @@ export default function Teachers() {
       </Modal>
 
       {viewTeacher && (
-        <Modal open onClose={() => setViewTeacher(null)} title="Teacher Profile">
+        <Modal open onClose={() => setViewTeacher(null)} title="Teacher Profile" width={900}>
           <div className="flex items-center gap-4 mb-5 pb-5 border-b" style={{ borderColor: '#f0f3fa' }}>
-            <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold" style={{ backgroundColor: '#d1fae5', color: '#065f46', fontFamily: 'Outfit, sans-serif' }}>
+            <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0" style={{ backgroundColor: '#d1fae5', color: '#065f46', fontFamily: 'Outfit, sans-serif' }}>
               {viewTeacher.firstName.replace('Dr. ', '')[0]}{viewTeacher.lastName[0]}
             </div>
             <div>
@@ -232,11 +269,86 @@ export default function Teachers() {
               <div className="text-sm" style={{ color: '#6b7280' }}>{viewTeacher.code} · {viewTeacher.specialization}</div>
               <div className="mt-1.5"><Badge variant={statusVariant(viewTeacher.status)} dot>{viewTeacher.status}</Badge></div>
             </div>
+            <Badge variant="primary">{teacherClasses.length} courses</Badge>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            {[['Email', viewTeacher.email], ['Phone', viewTeacher.phone], ['Department', getDepartmentName(viewTeacher.departmentId)], ['Gender', viewTeacher.gender], ['Joined', viewTeacher.joinedAt]].map(([label, val]) => (
-              <div key={label}><div className="text-xs font-medium mb-0.5" style={{ color: '#9ca3af' }}>{label}</div><div style={{ color: '#1a1f36' }}>{val}</div></div>
-            ))}
+
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Teacher information */}
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>Teacher Information</div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                {[['Email', viewTeacher.email], ['Phone', viewTeacher.phone], ['Department', getDepartmentName(viewTeacher.departmentId)], ['Gender', viewTeacher.gender], ['Joined', viewTeacher.joinedAt]].map(([label, val]) => (
+                  <div key={label}><div className="text-xs font-medium mb-0.5" style={{ color: '#9ca3af' }}>{label}</div><div style={{ color: '#1a1f36' }}>{val}</div></div>
+                ))}
+              </div>
+
+              <div className="text-xs font-semibold uppercase tracking-wide mt-6 mb-3" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>
+                Assigned Courses
+              </div>
+              {teacherClasses.length === 0 ? (
+                <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: '#e2e7f0', color: '#9ca3af', backgroundColor: '#fafbfd' }}>
+                  No courses assigned to this teacher.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {teacherClasses.map(cls => {
+                    const students = enrollments.filter(e => e.classId === cls.id && e.status === 'approved')
+                    const present = attendance.filter(a => a.classId === cls.id && a.status === 'present').length
+                    const total = attendance.filter(a => a.classId === cls.id).length
+                    const rate = total > 0 ? Math.round((present / total) * 100) : 0
+                    return (
+                      <div key={cls.id} className="rounded-lg border overflow-hidden" style={{ borderColor: '#e2e7f0' }}>
+                        <div className="flex items-center justify-between gap-3 px-4 py-2.5" style={{ backgroundColor: '#f8f9fd', borderBottom: '1px solid #e2e7f0' }}>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold truncate" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{cls.name}</div>
+                            <div className="text-xs truncate" style={{ color: '#9ca3af' }}>
+                              {subjectName(cls.subjectId)} ({subjectCode(cls.subjectId)}) · {cls.day}{cls.startTime ? ` · ${cls.startTime.slice(0, 5)}–${cls.endTime.slice(0, 5)}` : ''}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <Badge variant="primary">{students.length}</Badge>
+                            <Badge variant={rate >= 80 ? 'success' : rate >= 60 ? 'warning' : 'danger'}>{rate}%</Badge>
+                          </div>
+                        </div>
+                        {students.length === 0 ? (
+                          <div className="px-4 py-3 text-sm" style={{ color: '#9ca3af' }}>No approved students yet.</div>
+                        ) : (
+                          <div className="max-h-32 overflow-y-auto divide-y" style={{ borderColor: '#f0f3fa' }}>
+                            {students.map(e => (
+                              <div key={e.id} className="flex items-center gap-3 px-4 py-2">
+                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ backgroundColor: '#eff2ff', color: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>
+                                  {initials(e.studentName)}
+                                </div>
+                                <div className="text-xs font-medium truncate" style={{ color: '#374151' }}>{e.studentName}</div>
+                                <div className="text-xs ml-auto truncate" style={{ color: '#9ca3af' }}>{e.studentCode}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Schedule */}
+            <div className="lg:border-l lg:pl-6" style={{ borderColor: '#f0f3fa' }}>
+              <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>
+                Weekly Schedule
+              </div>
+              {teacherSlots.length === 0 ? (
+                <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: '#e2e7f0', color: '#9ca3af', backgroundColor: '#fafbfd' }}>
+                  No scheduled classes for this teacher.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <div className="min-w-[560px]">
+                    <ScheduleGrid slots={teacherSlots} />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </Modal>
       )}

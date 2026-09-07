@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listDepartments, type DepartmentRecord } from '../api/departments'
-import { listStudents, createStudent, updateStudent, type Student, type Status } from '../api/students'
+import { listStudents, listStudentsPage, createStudent, updateStudent, type Student, type Status } from '../api/students'
+import { listAttendance, type AttendanceWithNames, type AttendanceStatus } from '../api/attendance'
+import { listEnrollments, type EnrollmentWithNames } from '../api/enrollments'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
 import Pagination from '../components/Pagination'
@@ -8,6 +10,13 @@ import { SkeletonTable, EmptyState } from '../components/Skeleton'
 import { useToast } from '../context/ToastContext'
 
 const PAGE_SIZE = 8
+
+const ATTENDANCE_COLORS: Record<AttendanceStatus, { bg: string; fg: string; label: string }> = {
+  present: { bg: '#d1fae5', fg: '#065f46', label: 'Present' },
+  absent: { bg: '#ffe4e6', fg: '#9f1239', label: 'Absent' },
+  late: { bg: '#fef3c7', fg: '#92400e', label: 'Late' },
+  permission: { bg: '#dbe4ff', fg: '#3451c7', label: 'Permission' },
+}
 
 export default function Students() {
   const { toast } = useToast()
@@ -17,12 +26,17 @@ export default function Students() {
   const [filterStatus, setFilterStatus] = useState<'all' | Status>('all')
   const [filterDept, setFilterDept] = useState<number | 'all'>('all')
   const [page, setPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Student | null>(null)
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [viewStudent, setViewStudent] = useState<Student | null>(null)
+  const [attendance, setAttendance] = useState<AttendanceWithNames[]>([])
+  const [enrollments, setEnrollments] = useState<EnrollmentWithNames[]>([])
+  const [studentAttendance, setStudentAttendance] = useState<AttendanceWithNames[]>([])
   const [form, setForm] = useState<{
     firstName: string; lastName: string; email: string; phone: string
     departmentId: number | null; gender: 'male' | 'female'; dateOfBirth: string; address: string
@@ -31,30 +45,30 @@ export default function Students() {
   const loadStudents = useCallback(async () => {
     setLoading(true)
     try {
-      const [students, departmentResult] = await Promise.all([listStudents(), listDepartments()])
-      setData(students)
+      const [studentsResult, departmentResult, attendanceRows, enrollmentRows] = await Promise.all([
+        listStudentsPage({ page, limit: PAGE_SIZE, search, status: filterStatus, departmentId: filterDept }),
+        listDepartments(), listAttendance(), listEnrollments(),
+      ])
+      setData(studentsResult.data)
+      setTotalItems(studentsResult.total)
+      setTotalPages(Math.max(1, studentsResult.totalPages))
       setDepartments(departmentResult.departments)
+      setAttendance(attendanceRows)
+      setEnrollments(enrollmentRows)
     } catch (err) {
       toast('error', err instanceof Error ? err.message : 'Failed to load students.')
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [toast, page, search, filterStatus, filterDept])
 
   useEffect(() => {
     loadStudents()
   }, [loadStudents])
 
-  const filtered = data.filter(s =>
-    (filterStatus === 'all' || s.status === filterStatus) &&
-    (filterDept === 'all' || s.departmentId === filterDept) &&
-    `${s.firstName} ${s.lastName} ${s.code} ${s.email}`.toLowerCase().includes(search.toLowerCase())
-  )
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-
   const resetPage = () => setPage(1)
+  const safePage = Math.min(page, totalPages)
+  const paginated = data
 
   const openCreate = () => {
     setEditing(null)
@@ -107,6 +121,17 @@ export default function Students() {
   const activeCount = data.filter(s => s.status === 'active').length
   const activeDepartments = departments.filter(d => d.status === 'active')
   const getDepartmentName = (id: number | null) => departments.find(d => d.id === id)?.name ?? 'Unassigned'
+
+  // Attendance for the currently viewed student
+  useEffect(() => {
+    if (!viewStudent) return
+    setStudentAttendance(attendance.filter(r => r.studentId === viewStudent.id))
+  }, [viewStudent, attendance])
+
+  const studentClasses = useMemo(() => {
+    if (!viewStudent) return []
+    return enrollments.filter(e => e.studentId === viewStudent.id && e.status === 'approved')
+  }, [viewStudent, enrollments])
 
   return (
     <div className="p-6 space-y-5">
@@ -205,7 +230,7 @@ export default function Students() {
             </tbody>
           </table>
         </div>
-        <Pagination page={safePage} totalPages={totalPages} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+        <Pagination page={safePage} totalPages={totalPages} totalItems={totalItems} pageSize={PAGE_SIZE} onPageChange={setPage} />
       </div>
 
       {/* Create / Edit Modal */}
@@ -248,7 +273,7 @@ export default function Students() {
 
       {/* View Modal */}
       {viewStudent && (
-        <Modal open onClose={() => setViewStudent(null)} title="Student Profile">
+        <Modal open onClose={() => setViewStudent(null)} title="Student Profile" width={900}>
           <div className="flex items-center gap-4 mb-5 pb-5 border-b" style={{ borderColor: '#f0f3fa' }}>
             <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0" style={{ backgroundColor: '#eff2ff', color: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>
               {viewStudent.firstName[0]}{viewStudent.lastName[0]}
@@ -259,21 +284,86 @@ export default function Students() {
               <div className="mt-1.5"><Badge variant={statusVariant(viewStudent.status)} dot>{viewStudent.status}</Badge></div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            {[
-              ['Email', viewStudent.email],
-              ['Phone', viewStudent.phone],
-              ['Department', getDepartmentName(viewStudent.departmentId)],
-              ['Gender', viewStudent.gender],
-              ['Date of Birth', viewStudent.dateOfBirth],
-              ['Enrolled', viewStudent.enrolledAt],
-              ['Address', viewStudent.address],
-            ].map(([label, val]) => (
-              <div key={label} className="col-span-1">
-                <div className="text-xs font-medium mb-0.5" style={{ color: '#9ca3af' }}>{label}</div>
-                <div style={{ color: '#1a1f36' }}>{val}</div>
+
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Student information */}
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>Student Information</div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                {[
+                  ['Email', viewStudent.email],
+                  ['Phone', viewStudent.phone],
+                  ['Department', getDepartmentName(viewStudent.departmentId)],
+                  ['Gender', viewStudent.gender],
+                  ['Date of Birth', viewStudent.dateOfBirth],
+                  ['Enrolled', viewStudent.enrolledAt],
+                  ['Address', viewStudent.address],
+                ].map(([label, val]) => (
+                  <div key={label} className={label === 'Address' ? 'col-span-2' : 'col-span-1'}>
+                    <div className="text-xs font-medium mb-0.5" style={{ color: '#9ca3af' }}>{label}</div>
+                    <div style={{ color: '#1a1f36' }}>{val}</div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Attendance by class */}
+            <div className="lg:border-l lg:pl-6" style={{ borderColor: '#f0f3fa' }}>
+              <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#6b7280', fontFamily: 'Outfit, sans-serif' }}>
+                Attendance by Class / Course
+              </div>
+              {studentClasses.length === 0 ? (
+                <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: '#e2e7f0', color: '#9ca3af', backgroundColor: '#fafbfd' }}>
+                  No enrolled classes for this student.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {studentClasses.map(enrollment => {
+                    const records = studentAttendance.filter(r => r.classId === enrollment.classId)
+                    const counts: Record<AttendanceStatus, number> = { present: 0, absent: 0, late: 0, permission: 0 }
+                    for (const r of records) counts[r.status]++
+                    const total = records.length
+                    const rate = total > 0 ? Math.round((counts.present / total) * 100) : 0
+                    return (
+                      <div key={enrollment.id} className="rounded-lg border overflow-hidden" style={{ borderColor: '#e2e7f0' }}>
+                        <div className="flex items-center justify-between gap-3 px-4 py-2.5" style={{ backgroundColor: '#f8f9fd', borderBottom: '1px solid #e2e7f0' }}>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold truncate" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{enrollment.subjectName || enrollment.className}</div>
+                            <div className="text-xs truncate" style={{ color: '#9ca3af' }}>{enrollment.className}</div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex gap-1">
+                              {(['present', 'absent', 'late', 'permission'] as AttendanceStatus[]).map(s => (
+                                <span key={s} className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: ATTENDANCE_COLORS[s].bg, color: ATTENDANCE_COLORS[s].fg }}>
+                                  {counts[s]}
+                                </span>
+                              ))}
+                            </div>
+                            <Badge variant={total > 0 ? 'primary' : 'neutral'}>{rate}%</Badge>
+                          </div>
+                        </div>
+                        {records.length === 0 ? (
+                          <div className="px-4 py-3 text-sm" style={{ color: '#9ca3af' }}>No attendance recorded yet.</div>
+                        ) : (
+                          <div className="max-h-40 overflow-y-auto divide-y" style={{ borderColor: '#f0f3fa' }}>
+                            {[...records].sort((a, b) => (a.date < b.date ? 1 : -1)).map(r => (
+                              <div key={r.id} className="flex items-center justify-between gap-3 px-4 py-2">
+                                <div className="text-xs font-medium" style={{ color: '#374151' }}>{r.date}</div>
+                                {r.remarks && <div className="text-xs truncate flex-1 text-right" style={{ color: '#9ca3af' }}>{r.remarks}</div>}
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0"
+                                  style={{ backgroundColor: ATTENDANCE_COLORS[r.status].bg, color: ATTENDANCE_COLORS[r.status].fg, fontFamily: 'Outfit, sans-serif' }}>
+                                  {ATTENDANCE_COLORS[r.status].label}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </Modal>
       )}

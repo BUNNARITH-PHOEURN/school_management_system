@@ -17,6 +17,14 @@ export async function listSubjects(): Promise<Subject[]> {
   return data.subjects
 }
 
+export async function listSubjectsPage(params: { page: number; limit: number; search?: string; departmentId?: number | 'all' }): Promise<{ data: Subject[]; total: number; page: number; totalPages: number }> {
+  const query: Record<string, string> = { page: String(params.page), limit: String(params.limit) }
+  if (params.search) query.search = params.search
+  if (params.departmentId && params.departmentId !== 'all') query.department_id = String(params.departmentId)
+  const { data } = await apiClient.get<{ data: Subject[]; total: number; page: number; totalPages: number }>('/subjects', { params: query })
+  return data
+}
+
 export async function createSubject(payload: SubjectPayload): Promise<Subject> {
   const { data } = await apiClient.post<{ subject: Subject }>('/subjects', payload)
   return data.subject

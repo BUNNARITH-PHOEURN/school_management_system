@@ -86,6 +86,14 @@ export async function listClasses(): Promise<Class[]> {
   return data.data.map(fromApi)
 }
 
+export async function listClassesPage(params: { page: number; limit: number; search?: string; status?: string }): Promise<{ data: Class[]; total: number; page: number; totalPages: number }> {
+  const query: Record<string, string> = { page: String(params.page), limit: String(params.limit) }
+  if (params.search) query.search = params.search
+  if (params.status) query.status = params.status
+  const { data } = await apiClient.get<{ data: ApiClass[]; total: number; page: number; totalPages: number }>(BASE_URL, { params: query })
+  return { ...data, data: data.data.map(fromApi) }
+}
+
 export async function listMyClasses(): Promise<Class[]> {
   const { data } = await apiClient.get<ApiClass[]>(`${BASE_URL}/mine`)
   return data.map(fromApi)
