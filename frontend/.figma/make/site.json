@@ -1,0 +1,8 @@
+{
+  "title": "School Management System",
+  "description": "School Management System - manage students, classes, subjects, and enrollment",
+  "language": "en",
+  "robots": {
+    "index": true
+  }
+}

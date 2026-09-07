@@ -132,11 +132,6 @@ export default function StudentLogin({ onLogin, onGoRegister, onHome }: StudentL
               Register as a student
             </button>
           </p>
-
-          <div className="mt-6 p-4 rounded-lg" style={{ backgroundColor: '#eff2ff', border: '1px solid #c1ceff' }}>
-            <p className="text-xs font-medium mb-1" style={{ color: '#3451c7', fontFamily: 'Outfit, sans-serif' }}>Demo admin login</p>
-            <p className="text-xs" style={{ color: '#6b7280' }}>Email: admin@school.edu · Password: password</p>
-          </div>
         </div>
       </div>
     </div>
