@@ -1,4 +1,5 @@
 const departmentModel = require('../models/departmentModel');
+const { paginate, pageResponse } = require('../utils/pagination');
 
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -7,7 +8,18 @@ function validate(body) {
   return null;
 }
 
-exports.list = asyncHandler(async (req, res) => res.json({ departments: await departmentModel.list() }));
+exports.list = asyncHandler(async (req, res) => {
+  const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
+  if (hasPaging) {
+    const { page, limit, offset } = paginate(req.query);
+    const [departments, total] = await Promise.all([
+      departmentModel.list({ limit, offset }),
+      departmentModel.countDepartments(),
+    ]);
+    return res.json(pageResponse(departments, total, { page, limit }));
+  }
+  res.json({ departments: await departmentModel.list() });
+});
 
 exports.create = asyncHandler(async (req, res) => {
   const error = validate(req.body);

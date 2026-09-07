@@ -1,4 +1,5 @@
 const studentModel = require('../models/studentModel');
+const { paginate, pageResponse } = require('../utils/pagination');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -99,6 +100,20 @@ const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 exports.getAllStudents = asyncHandler(async (req, res) => {
+  const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
+  if (hasPaging) {
+    const { page, limit, offset } = paginate(req.query);
+    const filters = {
+      search: typeof req.query.search === 'string' ? req.query.search.trim() : undefined,
+      status: req.query.status,
+      department_id: req.query.department_id,
+    };
+    const [students, total] = await Promise.all([
+      studentModel.getAllStudents({ limit, offset, ...filters }),
+      studentModel.countStudents(filters),
+    ]);
+    return res.json(pageResponse(students, total, { page, limit }));
+  }
   const students = await studentModel.getAllStudents();
   res.json(students);
 });

@@ -23,7 +23,26 @@ async function getAttendance(filters = {}) {
   }
 
   const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
-  return query(`${SELECT_WITH_NAMES} ${whereClause} ORDER BY a.date DESC, a.id DESC`, params);
+  const limit = filters.limit ?? null;
+  const offset = filters.offset ?? 0;
+  const limitClause = limit ? ` LIMIT ${Number(limit)} OFFSET ${Number(offset)}` : '';
+  return query(`${SELECT_WITH_NAMES} ${whereClause} ORDER BY a.date DESC, a.id DESC${limitClause}`, params);
+}
+
+async function countAttendance(filters = {}) {
+  const where = [];
+  const params = [];
+  if (filters.classId) {
+    where.push('a.class_id = ?');
+    params.push(filters.classId);
+  }
+  if (filters.date) {
+    where.push('a.date = ?');
+    params.push(filters.date);
+  }
+  const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+  const rows = await query(`SELECT COUNT(*) AS total FROM attendance a ${whereClause}`, params);
+  return Number(rows[0]?.total ?? 0);
 }
 
 async function getAttendanceById(id) {
@@ -88,6 +107,7 @@ async function deleteAttendance(id) {
 
 module.exports = {
   getAttendance,
+  countAttendance,
   getAttendanceById,
   findAttendance,
   createAttendance,

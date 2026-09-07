@@ -11,15 +11,39 @@ const CLASS_FIELDS = [
   'status',
 ];
 
-async function getAllClasses() {
+async function getAllClasses(options = {}) {
+  const limit = options.limit ?? null;
+  const offset = options.offset ?? 0;
+  const limitClause = limit ? ` LIMIT ${Number(limit)} OFFSET ${Number(offset)}` : '';
+  const where = options.status && options.status !== 'all' ? ' WHERE c.status = ?' : '';
+  const params = options.status && options.status !== 'all' ? [options.status] : [];
+  const searchWhere = options.search ? (where ? ' AND ' : ' WHERE ') + '(c.name LIKE ?)' : '';
+  if (options.search) params.push(`%${options.search}%`);
   return query(`
     SELECT c.*,
       COALESCE(GROUP_CONCAT(ct.teacher_id ORDER BY ct.teacher_id), '') AS teacher_ids
     FROM classes c
     LEFT JOIN class_teachers ct ON ct.class_id = c.id
+    ${where}${searchWhere}
     GROUP BY c.id
-    ORDER BY c.id
-  `);
+    ORDER BY c.id${limitClause}
+  `, params);
+}
+
+async function countClasses(options = {}) {
+  const where = [];
+  const params = [];
+  if (options.status && options.status !== 'all') {
+    where.push('c.status = ?');
+    params.push(options.status);
+  }
+  if (options.search) {
+    where.push('c.name LIKE ?');
+    params.push(`%${options.search}%`);
+  }
+  const whereClause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
+  const rows = await query(`SELECT COUNT(*) AS total FROM classes c${whereClause}`, params);
+  return Number(rows[0]?.total ?? 0);
 }
 
 async function getClassById(id) {
@@ -97,6 +121,7 @@ async function replaceTeacherAssignments(classId, teacherIds) {
 
 module.exports = {
   getAllClasses,
+  countClasses,
   getClassById,
   getClassesByTeacher,
   createClass,

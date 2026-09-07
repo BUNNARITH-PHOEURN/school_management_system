@@ -7,12 +7,20 @@ const ACADEMIC_YEAR_FIELDS = [
   'status'
 ];
 
-async function getAllAcademicYears() {
+async function getAllAcademicYears(options = {}) {
+  const limit = options.limit ?? null;
+  const offset = options.offset ?? 0;
+  const limitClause = limit ? ` LIMIT ${Number(limit)} OFFSET ${Number(offset)}` : '';
   return query(
     `SELECT id, name, DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date,
       DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date, status
-     FROM academic_years ORDER BY id DESC`,
+     FROM academic_years ORDER BY id DESC${limitClause}`,
   );
+}
+
+async function countAcademicYears() {
+  const rows = await query('SELECT COUNT(*) AS total FROM academic_years');
+  return Number(rows[0]?.total ?? 0);
 }
 
 async function getAcademicYearById(id) {
@@ -95,6 +103,7 @@ async function deleteAcademicYear(id) {
 
 module.exports = {
   getAllAcademicYears,
+  countAcademicYears,
   getAcademicYearById,
   createAcademicYear,
   updateAcademicYear,

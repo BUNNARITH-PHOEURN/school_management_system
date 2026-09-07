@@ -1,4 +1,5 @@
 const classModel = require('../models/classModel');
+const { paginate, pageResponse } = require('../utils/pagination');
 
 const STATUSES = ['active', 'inactive'];
 
@@ -21,6 +22,19 @@ const asyncHandler = (fn) => (req, res, next) =>
 
 const getAllClasses = asyncHandler(async (req, res) => {
   try {
+    const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
+    if (hasPaging) {
+      const { page, limit, offset } = paginate(req.query);
+      const filters = {
+        search: typeof req.query.search === 'string' ? req.query.search.trim() : undefined,
+        status: req.query.status,
+      };
+      const [classes, total] = await Promise.all([
+        classModel.getAllClasses({ limit, offset, ...filters }),
+        classModel.countClasses(filters),
+      ]);
+      return res.status(200).json(pageResponse(classes, total, { page, limit }));
+    }
     const classes = await classModel.getAllClasses();
     return res.status(200).json({
       success: true,

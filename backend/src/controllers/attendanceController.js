@@ -1,5 +1,6 @@
 const attendanceModel = require('../models/attendanceModel');
 const classModel = require('../models/classModel');
+const { paginate, pageResponse } = require('../utils/pagination');
 
 const STATUSES = ['present', 'absent', 'late', 'permission'];
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -67,7 +68,18 @@ exports.getAllAttendance = asyncHandler(async (req, res) => {
   const classId = req.query.class_id ? parseId(req.query.class_id) : null;
   const date = typeof req.query.date === 'string' && DATE_REGEX.test(req.query.date) ? req.query.date : null;
 
-  const records = await attendanceModel.getAttendance({ classId, date });
+  const filters = { classId, date };
+  const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
+  if (hasPaging) {
+    const { page, limit, offset } = paginate(req.query);
+    const [records, total] = await Promise.all([
+      attendanceModel.getAttendance({ ...filters, limit, offset }),
+      attendanceModel.countAttendance(filters),
+    ]);
+    return res.json(pageResponse(records, total, { page, limit }));
+  }
+
+  const records = await attendanceModel.getAttendance(filters);
   res.json(records);
 });
 

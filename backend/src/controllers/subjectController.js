@@ -1,4 +1,5 @@
 const subjectModel = require('../models/subjectModel');
+const { paginate, pageResponse } = require('../utils/pagination');
 
 const allowedStatuses = ['active', 'inactive'];
 
@@ -32,6 +33,19 @@ function validate(body, partial = false) {
 
 exports.list = async (req, res, next) => {
   try {
+    const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
+    if (hasPaging) {
+      const { page, limit, offset } = paginate(req.query);
+      const filters = {
+        search: typeof req.query.search === 'string' ? req.query.search.trim() : undefined,
+        department_id: req.query.department_id,
+      };
+      const [subjects, total] = await Promise.all([
+        subjectModel.getAllSubjects({ limit, offset, ...filters }),
+        subjectModel.countSubjects(filters),
+      ]);
+      return res.json(pageResponse(subjects, total, { page, limit }));
+    }
     res.json({ subjects: await subjectModel.getAllSubjects() });
   } catch (error) {
     next(error);

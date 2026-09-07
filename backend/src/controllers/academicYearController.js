@@ -1,4 +1,5 @@
 const AcademicYear = require('../models/academicYearModel');
+const { paginate, pageResponse } = require('../utils/pagination');
 
 // Create a new academic year
 const createAcademicYear = async (req, res) => {
@@ -35,6 +36,15 @@ const createAcademicYear = async (req, res) => {
 // Get all academic years
 const getAllAcademicYears = async (req, res) => {
   try {
+    const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
+    if (hasPaging) {
+      const { page, limit, offset } = paginate(req.query);
+      const [academicYears, total] = await Promise.all([
+        AcademicYear.getAllAcademicYears({ limit, offset }),
+        AcademicYear.countAcademicYears(),
+      ]);
+      return res.status(200).json(pageResponse(academicYears, total, { page, limit }));
+    }
     const academicYears = await AcademicYear.getAllAcademicYears();
     return res.status(200).json({
       success: true,

@@ -1,9 +1,35 @@
 const { query } = require('../config/db');
 
-async function getAllSubjects() {
+async function getAllSubjects(options = {}) {
+  const { where, params } = buildFilters(options);
+  const limit = options.limit ?? null;
+  const offset = options.offset ?? 0;
+  const limitClause = limit ? ` LIMIT ${Number(limit)} OFFSET ${Number(offset)}` : '';
   return query(
-    'SELECT id, code, name, credits, description, department_id, status FROM subjects ORDER BY name',
+    'SELECT id, code, name, credits, description, department_id, status FROM subjects' + where + ' ORDER BY name' + limitClause,
+    params,
   );
+}
+
+function buildFilters(options = {}) {
+  const where = [];
+  const params = [];
+  if (options.department_id && options.department_id !== 'all') {
+    where.push('department_id = ?');
+    params.push(options.department_id);
+  }
+  if (options.search) {
+    where.push('(name LIKE ? OR code LIKE ?)');
+    const like = `%${options.search}%`;
+    params.push(like, like);
+  }
+  return { where: where.length ? ` WHERE ${where.join(' AND ')}` : '', params };
+}
+
+async function countSubjects(options = {}) {
+  const { where, params } = buildFilters(options);
+  const rows = await query(`SELECT COUNT(*) AS total FROM subjects${where}`, params);
+  return Number(rows[0]?.total ?? 0);
 }
 
 async function getSubjectById(id) {
@@ -35,4 +61,4 @@ async function deleteSubject(id) {
   return result.affectedRows > 0;
 }
 
-module.exports = { getAllSubjects, getSubjectById, createSubject, updateSubject, deleteSubject };
+module.exports = { getAllSubjects, countSubjects, getSubjectById, createSubject, updateSubject, deleteSubject };
