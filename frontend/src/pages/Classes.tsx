@@ -177,7 +177,7 @@ export default function Classes() {
         <div className="grid grid-cols-2 gap-x-4">
           <FormField label="Academic Year"><select value={form.academicYearId || ''} onChange={e => setForm(f => ({ ...f, academicYearId: Number(e.target.value) }))} className={inputClass} style={inputStyle}>
             <option value="">Select academic year</option>
-            {academicYears.filter(year => year.status === 'active').map(year => <option key={year.id} value={year.id}>{year.name}</option>)}
+            {academicYears.map(year => <option key={year.id} value={year.id}>{year.name} {year.status === 'active' ? '(Active)' : ''}</option>)}
           </select></FormField>
           <FormField label="Subject"><select value={form.subjectId || ''} onChange={e => setForm(f => ({ ...f, subjectId: Number(e.target.value) }))} className={inputClass} style={inputStyle}>
             <option value="">Select subject</option>
