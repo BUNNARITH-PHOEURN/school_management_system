@@ -1,5 +1,8 @@
-import { useState } from 'react'
-import { classes, teachers, subjects, getTeacherName, getSubjectName, type Class } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import { listClasses, type Class } from '../api/classes'
+import { listTeachers, type Teacher } from '../api/teachers'
+import { listSubjects, type Subject } from '../api/subjects'
+import { assignTeacher, listTeacherAssignments, removeTeacherAssignment } from '../api/teacherAssignments'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle } from '../components/Modal'
 import { useToast } from '../context/ToastContext'
@@ -7,39 +10,63 @@ import { EmptyState } from '../components/Skeleton'
 
 export default function TeacherAssignments() {
   const { toast } = useToast()
-  const [classData, setClassData] = useState(classes)
+  const [classData, setClassData] = useState<Class[]>([])
+  const [teachers, setTeachers] = useState<Teacher[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [error, setError] = useState('')
   const [selectedClass, setSelectedClass] = useState<Class | null>(null)
   const [assignModal, setAssignModal] = useState(false)
-  const [newTeacherId, setNewTeacherId] = useState(teachers[0].id)
+  const [newTeacherId, setNewTeacherId] = useState<number | ''>('')
   const [search, setSearch] = useState('')
+
+  const getTeacherName = (id: number) => {
+    const teacher = teachers.find(item => item.id === id)
+    return teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unknown teacher'
+  }
+  const getSubjectName = (id: number) => subjects.find(subject => subject.id === id)?.name ?? 'Unknown subject'
+
+  useEffect(() => {
+    Promise.all([listClasses(), listTeachers(), listSubjects(), listTeacherAssignments()])
+      .then(([classes, teacherRows, subjectRows, assignments]) => {
+        const teacherIdsByClass = new Map<number, number[]>()
+        assignments.forEach(assignment => {
+          const ids = teacherIdsByClass.get(assignment.class_id) ?? []
+          teacherIdsByClass.set(assignment.class_id, [...ids, assignment.teacher_id])
+        })
+        setClassData(classes.map(item => ({ ...item, teacherIds: teacherIdsByClass.get(item.id) ?? [] })))
+        setTeachers(teacherRows)
+        setSubjects(subjectRows)
+      })
+      .catch(err => setError(err instanceof Error ? err.message : 'Unable to load teacher assignments'))
+  }, [])
 
   const activeClasses = classData.filter(c =>
     c.status === 'active' &&
     `${c.name} ${getSubjectName(c.subjectId)}`.toLowerCase().includes(search.toLowerCase())
   )
 
-  const handleAssign = () => {
-    if (!selectedClass) return
+  const handleAssign = async () => {
+    if (!selectedClass || newTeacherId === '') return
     if (selectedClass.teacherIds.includes(newTeacherId)) {
       toast('error', 'This teacher is already assigned to the class.')
       return
     }
-    setClassData(prev => prev.map(c =>
-      c.id === selectedClass.id ? { ...c, teacherIds: [...c.teacherIds, newTeacherId] } : c
-    ))
-    setSelectedClass(prev => prev ? { ...prev, teacherIds: [...prev.teacherIds, newTeacherId] } : prev)
-    toast('success', `${getTeacherName(newTeacherId)} assigned successfully.`)
-    setAssignModal(false)
+    try {
+      await assignTeacher(selectedClass.id, newTeacherId)
+      setClassData(prev => prev.map(c => c.id === selectedClass.id ? { ...c, teacherIds: [...c.teacherIds, newTeacherId] } : c))
+      setSelectedClass(prev => prev ? { ...prev, teacherIds: [...prev.teacherIds, newTeacherId] } : prev)
+      toast('success', `${getTeacherName(newTeacherId)} assigned successfully.`)
+      setAssignModal(false)
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to assign teacher') }
   }
 
-  const handleRemove = (classId: number, teacherId: number) => {
-    setClassData(prev => prev.map(c =>
-      c.id === classId ? { ...c, teacherIds: c.teacherIds.filter(id => id !== teacherId) } : c
-    ))
-    if (selectedClass?.id === classId) {
-      setSelectedClass(prev => prev ? { ...prev, teacherIds: prev.teacherIds.filter(id => id !== teacherId) } : prev)
-    }
-    toast('info', 'Teacher removed from class.')
+  const handleRemove = async (classId: number, teacherId: number) => {
+    try {
+      await removeTeacherAssignment(classId, teacherId)
+      setClassData(prev => prev.map(c => c.id === classId ? { ...c, teacherIds: c.teacherIds.filter(id => id !== teacherId) } : c))
+      if (selectedClass?.id === classId) setSelectedClass(prev => prev ? { ...prev, teacherIds: prev.teacherIds.filter(id => id !== teacherId) } : prev)
+      toast('info', 'Teacher removed from class.')
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to remove teacher') }
   }
 
   const currentClass = selectedClass ? classData.find(c => c.id === selectedClass.id) ?? selectedClass : null
@@ -50,6 +77,7 @@ export default function TeacherAssignments() {
         <h1 className="text-xl font-bold mb-0.5" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>Teacher Assignments</h1>
         <p className="text-sm" style={{ color: '#9ca3af' }}>Assign and manage teachers per class</p>
       </div>
+      {error && <div className="rounded-lg p-3 text-sm" style={{ backgroundColor: '#fff1f2', color: '#9f1239' }}>{error}</div>}
 
       <div className="grid lg:grid-cols-5 gap-5">
         {/* Class list */}
@@ -122,7 +150,7 @@ export default function TeacherAssignments() {
                     </div>
                   </div>
                   <button
-                    onClick={() => { setNewTeacherId(teachers.find(t => t.status === 'active' && !currentClass.teacherIds.includes(t.id))?.id ?? teachers[0].id); setAssignModal(true) }}
+                    onClick={() => { setNewTeacherId(teachers.find(t => t.status === 'active' && !currentClass.teacherIds.includes(t.id))?.id ?? ''); setAssignModal(true) }}
                     className="px-3.5 py-2 text-xs font-semibold rounded-lg text-white flex items-center gap-1.5"
                     style={{ backgroundColor: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}
                   >
@@ -206,7 +234,8 @@ export default function TeacherAssignments() {
           Assigning to: <strong style={{ color: '#1a1f36' }}>{currentClass?.name}</strong>
         </div>
         <FormField label="Select Teacher" required>
-          <select value={newTeacherId} onChange={e => setNewTeacherId(Number(e.target.value))} className={inputClass} style={inputStyle}>
+          <select value={newTeacherId} onChange={e => setNewTeacherId(e.target.value ? Number(e.target.value) : '')} className={inputClass} style={inputStyle}>
+            <option value="">Select teacher</option>
             {teachers.filter(t => t.status === 'active').map(t => (
               <option key={t.id} value={t.id} disabled={currentClass?.teacherIds.includes(t.id)}>
                 {t.firstName} {t.lastName} — {t.specialization}{currentClass?.teacherIds.includes(t.id) ? ' (already assigned)' : ''}

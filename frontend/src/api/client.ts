@@ -7,7 +7,16 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use(config => {
-  Object.assign(config.headers, authHeaders())
+  const headers = authHeaders()
+  // Axios v1 uses an AxiosHeaders object. Use its setter so the header is
+  // actually serialized on the request rather than only assigned as a property.
+  for (const [name, value] of Object.entries(headers)) {
+    if (typeof config.headers?.set === 'function') {
+      config.headers.set(name, value)
+    } else {
+      if (config.headers) config.headers[name] = value
+    }
+  }
   return config
 })
 

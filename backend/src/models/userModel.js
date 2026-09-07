@@ -7,7 +7,7 @@ async function findByEmail(email) {
 
 async function findById(id) {
   const rows = await query(
-    'SELECT id, name, email, phone, bio, avatar_url, role, status, teacher_id, created_at, last_login FROM users WHERE id = ? LIMIT 1',
+    'SELECT id, name, email, phone, bio, avatar_url, role, status, teacher_id, student_id, created_at, last_login FROM users WHERE id = ? LIMIT 1',
     [id],
   );
   return rows[0];
@@ -15,16 +15,32 @@ async function findById(id) {
 
 async function list() {
   return query(
-    'SELECT id, name, email, phone, bio, avatar_url, role, status, teacher_id, created_at, last_login FROM users ORDER BY name',
+    'SELECT id, name, email, phone, bio, avatar_url, role, status, teacher_id, student_id, created_at, last_login FROM users ORDER BY name',
   );
 }
 
-async function create({ name, email, passwordHash, role }) {
-  const result = await query(
-    'INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)',
-    [name, email, passwordHash, role, 'active'],
-  );
-  return findById(result.insertId);
+async function create({ name, email, passwordHash, role, avatarUrl, studentId }) {
+  const hasExplicitRole = role !== undefined;
+  const result = hasExplicitRole
+    ? await query(
+      `INSERT INTO users (name, email, password_hash, role, status, avatar_url, student_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [name, email, passwordHash, role, 'active', avatarUrl ?? null, studentId ?? null],
+    )
+    : await query(
+      `INSERT INTO users (name, email, password_hash, role, status)
+       VALUES (?, ?, ?, 'moderator', 'active')`,
+      [name, email, passwordHash],
+    );
+  return {
+    id: result.insertId,
+    name,
+    email,
+    role: role || 'moderator',
+    status: 'active',
+    last_login: null,
+    ...(avatarUrl ? { avatarUrl } : {}),
+  };
 }
 
 async function update(id, data) {
@@ -45,4 +61,9 @@ async function updateLastLogin(id, lastLogin) {
   await query('UPDATE users SET last_login = ? WHERE id = ?', [lastLogin, id]);
 }
 
-module.exports = { findByEmail, findById, list, create, update, updateLastLogin };
+async function remove(id) {
+  const result = await query('DELETE FROM users WHERE id = ?', [id]);
+  return result.affectedRows > 0;
+}
+
+module.exports = { findByEmail, findById, list, update, updateLastLogin, create, remove };

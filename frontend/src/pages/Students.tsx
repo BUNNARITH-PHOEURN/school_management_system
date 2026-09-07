@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { departments, getDepartmentName, type Student, type Status } from '../data/mockData'
-import { listStudents, createStudent, updateStudent } from '../api/students'
+import { listDepartments, type DepartmentRecord } from '../api/departments'
+import { listStudents, createStudent, updateStudent, type Student, type Status } from '../api/students'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../components/Modal'
 import Pagination from '../components/Pagination'
@@ -12,6 +12,7 @@ const PAGE_SIZE = 8
 export default function Students() {
   const { toast } = useToast()
   const [data, setData] = useState<Student[]>([])
+  const [departments, setDepartments] = useState<DepartmentRecord[]>([])
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | Status>('all')
   const [filterDept, setFilterDept] = useState<number | 'all'>('all')
@@ -24,14 +25,15 @@ export default function Students() {
   const [viewStudent, setViewStudent] = useState<Student | null>(null)
   const [form, setForm] = useState<{
     firstName: string; lastName: string; email: string; phone: string
-    departmentId: number; gender: 'male' | 'female'; dateOfBirth: string; address: string
-  }>({ firstName: '', lastName: '', email: '', phone: '', departmentId: 1, gender: 'male', dateOfBirth: '', address: '' })
+    departmentId: number | null; gender: 'male' | 'female'; dateOfBirth: string; address: string
+  }>({ firstName: '', lastName: '', email: '', phone: '', departmentId: null, gender: 'male', dateOfBirth: '', address: '' })
 
   const loadStudents = useCallback(async () => {
     setLoading(true)
     try {
-      const students = await listStudents()
+      const [students, departmentResult] = await Promise.all([listStudents(), listDepartments()])
       setData(students)
+      setDepartments(departmentResult.departments)
     } catch (err) {
       toast('error', err instanceof Error ? err.message : 'Failed to load students.')
     } finally {
@@ -56,7 +58,7 @@ export default function Students() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ firstName: '', lastName: '', email: '', phone: '', departmentId: 1, gender: 'male', dateOfBirth: '', address: '' })
+    setForm({ firstName: '', lastName: '', email: '', phone: '', departmentId: departments.find(d => d.status === 'active')?.id ?? null, gender: 'male', dateOfBirth: '', address: '' })
     setModalOpen(true)
   }
   const openEdit = (s: Student) => {
@@ -103,6 +105,8 @@ export default function Students() {
   }
 
   const activeCount = data.filter(s => s.status === 'active').length
+  const activeDepartments = departments.filter(d => d.status === 'active')
+  const getDepartmentName = (id: number | null) => departments.find(d => d.id === id)?.name ?? 'Unassigned'
 
   return (
     <div className="p-6 space-y-5">
@@ -227,8 +231,9 @@ export default function Students() {
         </div>
         <div className="grid grid-cols-2 gap-x-4">
           <FormField label="Department" required>
-            <select value={form.departmentId} onChange={e => setForm(f => ({ ...f, departmentId: Number(e.target.value) }))} className={inputClass} style={inputStyle}>
-              {departments.filter(d => d.status === 'active').map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            <select value={form.departmentId ?? ''} onChange={e => setForm(f => ({ ...f, departmentId: e.target.value ? Number(e.target.value) : null }))} className={inputClass} style={inputStyle}>
+                  <option value="">Select department</option>
+                  {activeDepartments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </FormField>
           <FormField label="Gender">

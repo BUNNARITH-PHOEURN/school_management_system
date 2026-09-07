@@ -4,6 +4,7 @@ const controller = require('../controllers/studentController');
 const router = express.Router();
 
 router.get('/', controller.getAllStudents);
+router.get('/next-code', controller.getNextCode);
 router.get('/:id', controller.getStudentById);
 router.post('/', controller.createStudent);
 router.put('/:id', controller.updateStudent);

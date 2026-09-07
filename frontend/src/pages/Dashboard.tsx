@@ -1,12 +1,12 @@
-import { students, teachers, subjects, classes, attendance, enrollments } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import { listStudents, type Student } from '../api/students'
+import { listTeachers, type Teacher } from '../api/teachers'
+import { listSubjects, type Subject } from '../api/subjects'
+import { listClasses, type Class } from '../api/classes'
+import { listAttendance, type AttendanceWithNames } from '../api/attendance'
+import { listEnrollments, type EnrollmentWithNames } from '../api/enrollments'
+import { listAcademicYears, type AcademicYear } from '../api/academicYears'
 import Badge, { statusVariant } from '../components/Badge'
-
-const activeStudents = students.filter(s => s.status === 'active').length
-const activeTeachers = teachers.filter(t => t.status === 'active').length
-const activeSubjects = subjects.filter(s => s.status === 'active').length
-const activeClasses = classes.filter(c => c.status === 'active').length
-
-const recentAttendance = [...attendance].reverse().slice(0, 6)
 
 function StatCard({ label, value, icon, color, sub }: { label: string; value: number; icon: string; color: string; sub: string }) {
   return (
@@ -23,14 +23,6 @@ function StatCard({ label, value, icon, color, sub }: { label: string; value: nu
   )
 }
 
-const attendanceData = [
-  { day: 'Mon', present: 28, total: 32 },
-  { day: 'Tue', present: 30, total: 32 },
-  { day: 'Wed', present: 25, total: 32 },
-  { day: 'Thu', present: 31, total: 32 },
-  { day: 'Fri', present: 26, total: 32 },
-]
-
 function AttendanceBar({ day, present, total }: { day: string; present: number; total: number }) {
   const pct = (present / total) * 100
   const color = pct >= 90 ? '#059669' : pct >= 75 ? '#d97706' : '#e11d48'
@@ -45,23 +37,58 @@ function AttendanceBar({ day, present, total }: { day: string; present: number; 
   )
 }
 
-const recentStudents = [...students].sort((a, b) => b.id - a.id).slice(0, 5)
-
 export default function Dashboard() {
+  const [students, setStudents] = useState<Student[]>([])
+  const [teachers, setTeachers] = useState<Teacher[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [classes, setClasses] = useState<Class[]>([])
+  const [attendance, setAttendance] = useState<AttendanceWithNames[]>([])
+  const [enrollments, setEnrollments] = useState<EnrollmentWithNames[]>([])
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([])
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    Promise.all([listStudents(), listTeachers(), listSubjects(), listClasses(), listAttendance(), listEnrollments(), listAcademicYears()])
+      .then(([studentRows, teacherRows, subjectRows, classRows, attendanceRows, enrollmentRows, yearRows]) => {
+        setStudents(studentRows)
+        setTeachers(teacherRows)
+        setSubjects(subjectRows)
+        setClasses(classRows)
+        setAttendance(attendanceRows)
+        setEnrollments(enrollmentRows)
+        setAcademicYears(yearRows)
+      })
+      .catch(err => setError(err instanceof Error ? err.message : 'Unable to load dashboard data'))
+  }, [])
+
+  const activeStudents = students.filter(s => s.status === 'active').length
+  const activeTeachers = teachers.filter(t => t.status === 'active').length
+  const activeSubjects = subjects.filter(s => s.status === 'active').length
+  const activeClasses = classes.filter(c => c.status === 'active').length
   const totalAttendance = attendance.length
   const presentCount = attendance.filter(a => a.status === 'present').length
   const absentCount = attendance.filter(a => a.status === 'absent').length
   const lateCount = attendance.filter(a => a.status === 'late').length
   const permCount = attendance.filter(a => a.status === 'permission').length
   const presentRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : 0
+  const activeYear = academicYears.find(year => year.status === 'active')
+  const recentStudents = [...students].sort((a, b) => b.id - a.id).slice(0, 5)
+  const attendanceData = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day, index) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (date.getDay() || 7) + index + 1)
+    const key = date.toISOString().slice(0, 10)
+    const daily = attendance.filter(record => record.date === key)
+    return { day, present: daily.filter(record => record.status === 'present').length, total: daily.length }
+  })
 
   return (
     <div className="p-6 space-y-6">
       {/* Page header */}
       <div>
         <h1 className="text-xl font-bold mb-0.5" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>Dashboard</h1>
-        <p className="text-sm" style={{ color: '#9ca3af' }}>Academic Year 2025–2026 overview</p>
+        <p className="text-sm" style={{ color: '#9ca3af' }}>{activeYear ? `${activeYear.name} overview` : 'School overview'}</p>
       </div>
+      {error && <div className="rounded-lg p-3 text-sm" style={{ backgroundColor: '#fff1f2', color: '#9f1239' }}>{error}</div>}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

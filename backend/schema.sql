@@ -182,12 +182,28 @@ CREATE TABLE IF NOT EXISTS users (
   bio TEXT NULL,
   avatar_url MEDIUMTEXT NULL,
   password_hash VARCHAR(255) NULL,
-  role ENUM('admin', 'moderator') NOT NULL DEFAULT 'moderator',
+  role ENUM('admin', 'moderator', 'student') NOT NULL DEFAULT 'moderator',
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   teacher_id INT NULL,
+  student_id INT NULL,
   created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   last_login DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY users_email_unique (email),
-  KEY users_teacher_id (teacher_id)
+  KEY users_teacher_id (teacher_id),
+  KEY users_student_id (student_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Idempotent migration for existing databases: add student_id to users
+SET @col_exists = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'student_id'
+);
+SET @ddl = IF(
+  @col_exists = 0,
+  'ALTER TABLE users ADD COLUMN student_id INT NULL AFTER teacher_id, ADD KEY users_student_id (student_id)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

@@ -15,11 +15,22 @@ const STUDENT_FIELDS = [
 ];
 
 async function getAllStudents() {
-  return query('SELECT * FROM students ORDER BY id DESC');
+  return query(
+    `SELECT id, code, first_name, last_name, email, phone, department_id, gender,
+      DATE_FORMAT(date_of_birth, '%Y-%m-%d') AS date_of_birth, address, status,
+      DATE_FORMAT(enrolled_at, '%Y-%m-%d') AS enrolled_at, created_at
+     FROM students ORDER BY id DESC`,
+  );
 }
 
 async function getStudentById(id) {
-  const rows = await query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
+  const rows = await query(
+    `SELECT id, code, first_name, last_name, email, phone, department_id, gender,
+      DATE_FORMAT(date_of_birth, '%Y-%m-%d') AS date_of_birth, address, status,
+      DATE_FORMAT(enrolled_at, '%Y-%m-%d') AS enrolled_at, created_at
+     FROM students WHERE id = ? LIMIT 1`,
+    [id],
+  );
   return rows[0];
 }
 
@@ -58,6 +69,12 @@ async function updateStudent(id, updates) {
   return getStudentById(id);
 }
 
+async function getNextStudentCode() {
+  const rows = await query('SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM students');
+  const next = rows[0].next_id;
+  return `STU-${String(next).padStart(3, '0')}`;
+}
+
 async function deleteStudent(id) {
   const result = await query('DELETE FROM students WHERE id = ?', [id]);
   return result.affectedRows > 0;
@@ -67,6 +84,7 @@ module.exports = {
   getAllStudents,
   getStudentById,
   createStudent,
+  getNextStudentCode,
   updateStudent,
   deleteStudent,
 };

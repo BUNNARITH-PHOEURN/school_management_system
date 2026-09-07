@@ -3,7 +3,13 @@ import Sidebar, { type Page } from './components/Sidebar'
 import TopBar from './components/TopBar'
 import { ToastProvider } from './context/ToastContext'
 import Login from './pages/Login'
-import Landing from './pages/Landing'
+import Home from './pages/Home'
+import About from './pages/About'
+import DepartmentsPage from './pages/DepartmentsPage'
+import ContactPage from './pages/ContactPage'
+import StudentRegister from './pages/StudentRegister'
+import StudentLogin from './pages/StudentLogin'
+import StudentPortal from './portal/StudentPortal'
 import { checkSession, type SessionUser } from './api/auth'
 import { loadSession, saveSession, clearSession } from './api/session'
 import Dashboard from './pages/Dashboard'
@@ -51,6 +57,9 @@ function getPageFromHash(): Page {
 function AppShell() {
   const [session, setSession] = useState<SessionUser | null>(() => loadSession())
   const initialSessionRef = useRef(session)
+  const [showLogin, setShowLogin] = useState(false)
+  const [registering, setRegistering] = useState(false)
+  const [publicView, setPublicView] = useState<'home' | 'about' | 'departments' | 'contact' | 'admin-login' | 'student-register' | 'student-login'>('home')
   const [currentPage, setCurrentPage] = useState<Page>(() => getPageFromHash())
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -93,9 +102,16 @@ function AppShell() {
     navigate('dashboard')
   }
 
+  const handleStudentSession = (user: SessionUser) => {
+    saveSession(user)
+    setSession(user)
+  }
+
   const handleLogout = () => {
     clearSession()
     setSession(null)
+    setShowLogin(false)
+    setPublicView('home')
   }
 
   const handleToggleSidebar = () => {
@@ -108,17 +124,79 @@ function AppShell() {
   }
 
   if (!session) {
-    if (loggedOutView === 'login') {
+    if (publicView === 'student-register') {
       return (
-        <Login
-          onLogin={handleLogin}
-          onBackToLanding={() => setLoggedOutView('landing')}
+        <StudentRegister
+          onSuccess={handleStudentSession}
+          onSignIn={() => { setRegistering(false); setPublicView('admin-login') }}
+          onHome={() => setPublicView('home')}
         />
       )
     }
-    return (
-      <Landing onLoginClick={() => setLoggedOutView('login')} />
-    )
+    if (publicView === 'student-login') {
+      return (
+        <StudentLogin
+          onLogin={handleStudentSession}
+          onGoRegister={() => setPublicView('student-register')}
+          onHome={() => setPublicView('home')}
+        />
+      )
+    }
+    if (publicView === 'contact') {
+      return (
+        <ContactPage
+          onHome={() => setPublicView('home')}
+          onAbout={() => setPublicView('about')}
+          onDepartments={() => setPublicView('departments')}
+          onLogin={() => { setRegistering(false); setShowLogin(true); setPublicView('home') }}
+          onRegister={() => { setRegistering(true); setShowLogin(true); setPublicView('home') }}
+          onStudentRegister={() => setPublicView('student-register')}
+        />
+      )
+    }
+    if (publicView === 'departments') {
+      return (
+        <DepartmentsPage
+          onHome={() => setPublicView('home')}
+          onAbout={() => setPublicView('about')}
+          onContact={() => setPublicView('contact')}
+          onLogin={() => { setRegistering(false); setShowLogin(true); setPublicView('home') }}
+          onRegister={() => { setRegistering(true); setShowLogin(true); setPublicView('home') }}
+          onStudentRegister={() => setPublicView('student-register')}
+        />
+      )
+    }
+    if (publicView === 'about') {
+      return (
+        <About
+          onHome={() => setPublicView('home')}
+          onLogin={() => { setRegistering(false); setShowLogin(true); setPublicView('home') }}
+          onRegister={() => { setRegistering(true); setShowLogin(true); setPublicView('home') }}
+          onStudentRegister={() => setPublicView('student-register')}
+          onStudentLogin={() => setPublicView('student-login')}
+          onDepartments={() => setPublicView('departments')}
+          onContact={() => setPublicView('contact')}
+        />
+      )
+    }
+    if (!showLogin) {
+      return (
+        <Home
+          onLogin={() => { setRegistering(false); setShowLogin(true) }}
+          onRegister={() => { setRegistering(true); setShowLogin(true) }}
+          onStudentRegister={() => setPublicView('student-register')}
+          onStudentLogin={() => setPublicView('student-login')}
+          onAbout={() => setPublicView('about')}
+          onDepartments={() => setPublicView('departments')}
+          onContact={() => setPublicView('contact')}
+        />
+      )
+    }
+    return <Login initialRegistering={registering} onLogin={handleLogin} />
+  }
+
+  if (session.role === 'student') {
+    return <StudentPortal session={session} onLogout={handleLogout} />
   }
 
   const PageComponent = pageComponents[currentPage]

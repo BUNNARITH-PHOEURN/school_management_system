@@ -1,10 +1,11 @@
-import { useState } from 'react'
-import { academicYears as initial, type AcademicYear } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import { createAcademicYear, listAcademicYears, updateAcademicYear, type AcademicYear } from '../api/academicYears'
 import Badge, { statusVariant } from '../components/Badge'
 import Modal, { FormField, inputClass, inputStyle } from '../components/Modal'
 
 export default function AcademicYears() {
-  const [data, setData] = useState(initial)
+  const [data, setData] = useState<AcademicYear[]>([])
+  const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<AcademicYear | null>(null)
   const [form, setForm] = useState({ name: '', startDate: '', endDate: '' })
@@ -19,16 +20,25 @@ export default function AcademicYears() {
     setForm({ name: a.name, startDate: a.startDate, endDate: a.endDate })
     setModalOpen(true)
   }
-  const handleSave = () => {
-    if (editing) {
-      setData(prev => prev.map(a => a.id === editing.id ? { ...a, ...form } : a))
-    } else {
-      const newId = Math.max(...data.map(a => a.id)) + 1
-      setData(prev => [...prev, { id: newId, ...form, status: 'active' as const }])
-    }
-    setModalOpen(false)
+  useEffect(() => {
+    listAcademicYears().then(setData).catch(err => setError(err instanceof Error ? err.message : 'Unable to load academic years'))
+  }, [])
+
+  const handleSave = async () => {
+    try {
+      const year = editing
+        ? await updateAcademicYear(editing.id, form)
+        : await createAcademicYear({ ...form, status: 'inactive' })
+      setData(prev => editing ? prev.map(a => a.id === year.id ? year : a) : [year, ...prev])
+      setModalOpen(false)
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save academic year') }
   }
-  const setActive = (id: number) => setData(prev => prev.map(a => ({ ...a, status: a.id === id ? 'active' : 'inactive' })))
+  const setActive = async (id: number) => {
+    try {
+      const year = await updateAcademicYear(id, { status: 'active' })
+      setData(prev => prev.map(a => a.id === id ? year : { ...a, status: 'inactive' }))
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to update academic year') }
+  }
 
   const activeYear = data.find(a => a.status === 'active')
 
@@ -43,6 +53,7 @@ export default function AcademicYears() {
       </div>
 
       <div className="space-y-3">
+        {error && <div className="rounded-lg p-3 text-sm" style={{ backgroundColor: '#fff1f2', color: '#9f1239' }}>{error}</div>}
         {data.map(year => {
           const isActive = year.status === 'active'
           const start = new Date(year.startDate)

@@ -87,12 +87,25 @@ function parseId(id) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function todayAsDateString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 exports.getAllStudents = asyncHandler(async (req, res) => {
   const students = await studentModel.getAllStudents();
   res.json(students);
+});
+
+exports.getNextCode = asyncHandler(async (req, res) => {
+  const code = await studentModel.getNextStudentCode();
+  res.json({ code });
 });
 
 exports.getStudentById = asyncHandler(async (req, res) => {
@@ -114,8 +127,22 @@ exports.createStudent = asyncHandler(async (req, res) => {
     return res.status(400).json({ errors });
   }
 
-  const student = await studentModel.createStudent(data);
-  res.status(201).json(student);
+  if (data.enrolled_at === undefined) {
+    data.enrolled_at = todayAsDateString();
+  }
+
+  try {
+    const student = await studentModel.createStudent(data);
+    res.status(201).json(student);
+  } catch (error) {
+    if (error?.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'A student with this email already exists' });
+    }
+    if (error?.code === 'ER_NO_REFERENCED_ROW_2') {
+      return res.status(400).json({ error: 'The selected department does not exist' });
+    }
+    throw error;
+  }
 });
 
 exports.updateStudent = asyncHandler(async (req, res) => {
@@ -132,11 +159,21 @@ exports.updateStudent = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'No valid fields to update' });
   }
 
-  const student = await studentModel.updateStudent(id, data);
-  if (!student) {
-    return res.status(404).json({ error: 'Student not found' });
+  try {
+    const student = await studentModel.updateStudent(id, data);
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    res.json(student);
+  } catch (error) {
+    if (error?.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'A student with this email already exists' });
+    }
+    if (error?.code === 'ER_NO_REFERENCED_ROW_2') {
+      return res.status(400).json({ error: 'The selected department does not exist' });
+    }
+    throw error;
   }
-  res.json(student);
 });
 
 exports.deleteStudent = asyncHandler(async (req, res) => {

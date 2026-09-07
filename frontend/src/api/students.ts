@@ -9,7 +9,7 @@ export interface Student {
   lastName: string
   email: string
   phone: string
-  departmentId: number
+  departmentId: number | null
   gender: 'male' | 'female'
   dateOfBirth: string
   address: string
@@ -40,7 +40,7 @@ export type StudentPayload = Partial<{
   lastName: string
   email: string
   phone: string
-  departmentId: number
+  departmentId: number | null
   gender: string
   dateOfBirth: string
   address: string
@@ -69,12 +69,12 @@ function fromApi(row: ApiStudent): Student {
     lastName: row.last_name,
     email: row.email,
     phone: row.phone ?? '',
-    departmentId: row.department_id ?? 1,
+    departmentId: row.department_id,
     gender: (row.gender ?? 'male') as Student['gender'],
-    dateOfBirth: row.date_of_birth ?? '',
+    dateOfBirth: row.date_of_birth?.slice(0, 10) ?? '',
     address: row.address ?? '',
     status: row.status,
-    enrolledAt: row.enrolled_at ?? '',
+    enrolledAt: row.enrolled_at?.slice(0, 10) ?? '',
   }
 }
 

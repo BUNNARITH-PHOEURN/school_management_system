@@ -1,24 +1,26 @@
 import { useState } from 'react'
-import { login, type SessionUser } from '../api/auth'
+import { login, register, type SessionUser } from '../api/auth'
 
 interface LoginProps {
   onLogin: (user: SessionUser) => void
-  onBackToLanding?: () => void
+  initialRegistering?: boolean
 }
 
-export default function Login({ onLogin, onBackToLanding }: LoginProps) {
-  const [email, setEmail] = useState('admin@school.edu')
-  const [password, setPassword] = useState('password')
+export default function Login({ onLogin, initialRegistering = false }: LoginProps) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [isRegistering, setIsRegistering] = useState(initialRegistering)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (!email || !password) { setError('Please fill in all fields.'); return }
+    if (!email || !password || (isRegistering && !name)) { setError('Please fill in all fields.'); return }
     setLoading(true)
     try {
-      const user = await login(email, password)
+      const user = isRegistering ? await register(name, email, password) : await login(email, password)
       onLogin(user)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid email or password.')
@@ -103,11 +105,17 @@ export default function Login({ onLogin, onBackToLanding }: LoginProps) {
           </div>
 
           <h1 className="text-2xl font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>
-            Welcome back
+            {isRegistering ? 'Create your account' : 'Welcome back'}
           </h1>
-          <p className="text-sm mb-8" style={{ color: '#6b7280' }}>Sign in to your account to continue</p>
+          <p className="text-sm mb-8" style={{ color: '#6b7280' }}>{isRegistering ? 'Register as a school moderator' : 'Sign in to your account to continue'}</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegistering && (
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: '#374151' }}>Full name</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" className="w-full px-3.5 py-2.5 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0', color: '#1a1f36' }} />
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium mb-1.5" style={{ color: '#374151' }}>Email address</label>
               <input
@@ -125,7 +133,7 @@ export default function Login({ onLogin, onBackToLanding }: LoginProps) {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-sm font-medium" style={{ color: '#374151' }}>Password</label>
-                <button type="button" className="text-xs" style={{ color: '#3b5bdb' }}>Forgot password?</button>
+                {!isRegistering && <button type="button" className="text-xs" style={{ color: '#3b5bdb' }}>Forgot password?</button>}
               </div>
               <input
                 type="password"
@@ -157,11 +165,17 @@ export default function Login({ onLogin, onBackToLanding }: LoginProps) {
             </button>
           </form>
 
-          <div className="mt-6 p-4 rounded-lg" style={{ backgroundColor: '#eff2ff', border: '1px solid #c1ceff' }}>
-            <p className="text-xs font-medium mb-1" style={{ color: '#3451c7', fontFamily: 'Outfit, sans-serif' }}>Demo credentials</p>
-            <p className="text-xs" style={{ color: '#6b7280' }}>Email: admin@school.edu</p>
-            <p className="text-xs" style={{ color: '#6b7280' }}>Password: password</p>
-          </div>
+          <p className="mt-5 text-center text-sm" style={{ color: '#6b7280' }}>
+            {isRegistering ? 'Already have an account?' : 'Need an account?'}{' '}
+            <button
+              type="button"
+              onClick={() => { setIsRegistering(value => !value); setError('') }}
+              className="font-medium"
+              style={{ color: '#3b5bdb' }}
+            >
+              {isRegistering ? 'Sign in' : 'Register'}
+            </button>
+          </p>
         </div>
       </div>
     </div>
