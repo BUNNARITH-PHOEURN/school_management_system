@@ -105,8 +105,8 @@ export default function StudentDashboard({ session, profile, onNavigate }: Stude
                 <p className="text-xs" style={{ color: '#9ca3af' }}>Your enrolled classes this term</p>
               </div>
               <div className="flex items-center gap-4">
-                <button onClick={() => onNavigate('subjects')} className="text-xs font-semibold" style={{ color: '#3b5bdb' }}>
-                  View all →
+                <button onClick={() => onNavigate('schedule')} className="text-xs font-semibold" style={{ color: '#3b5bdb' }}>
+                  View schedule →
                 </button>
                 <button onClick={() => onNavigate('enroll')} className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg" style={{ backgroundColor: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>
                   + Enroll in Subjects

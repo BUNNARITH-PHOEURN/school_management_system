@@ -10,6 +10,7 @@ import ContactPage from './pages/ContactPage'
 import StudentRegister from './pages/StudentRegister'
 import StudentLogin from './pages/StudentLogin'
 import StudentPortal from './portal/StudentPortal'
+import TeacherPortal from './portal/TeacherPortal'
 import { checkSession, type SessionUser } from './api/auth'
 import { loadSession, saveSession, clearSession } from './api/session'
 import Dashboard from './pages/Dashboard'
@@ -18,10 +19,11 @@ import Departments from './pages/Departments'
 import AcademicYears from './pages/AcademicYears'
 import Students from './pages/Students'
 import Teachers from './pages/Teachers'
-import TeacherAssignments from './pages/TeacherAssignments'
 import Subjects from './pages/Subjects'
+import SubjectFees from './pages/SubjectFees'
 import Classes from './pages/Classes'
 import Enrollments from './pages/Enrollments'
+import Payments from './pages/Payments'
 import Attendance from './pages/Attendance'
 import Reports from './pages/Reports'
 import Profile from './pages/Profile'
@@ -33,10 +35,11 @@ const pageComponents: Record<Page, React.ComponentType> = {
   'academic-years': AcademicYears,
   students: Students,
   teachers: Teachers,
-  'teacher-assignments': TeacherAssignments,
   subjects: Subjects,
+  'subject-fees': SubjectFees,
   classes: Classes,
   enrollments: Enrollments,
+  payments: Payments,
   attendance: Attendance,
   reports: Reports,
   profile: Profile,
@@ -44,8 +47,8 @@ const pageComponents: Record<Page, React.ComponentType> = {
 
 const VALID_PAGES: Page[] = [
   'dashboard', 'users', 'departments', 'academic-years',
-  'students', 'teachers', 'teacher-assignments', 'subjects',
-  'classes', 'enrollments', 'attendance', 'reports', 'profile',
+  'students', 'teachers', 'subjects',
+  'classes', 'enrollments', 'subject-fees', 'attendance', 'payments', 'reports', 'profile',
 ]
 
 function getPageFromHash(): Page {
@@ -201,6 +204,10 @@ function AppShell() {
 
   if (session.role === 'student') {
     return <StudentPortal session={session} onLogout={handleLogout} />
+  }
+
+  if (session.role === 'teacher') {
+    return <TeacherPortal session={session} onLogout={handleLogout} />
   }
 
   const PageComponent = pageComponents[currentPage]
