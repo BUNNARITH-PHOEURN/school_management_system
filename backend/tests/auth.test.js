@@ -88,9 +88,15 @@ describe('POST /api/auth/login', () => {
 });
 
 describe('POST /api/auth/register', () => {
-  test('creates an active moderator account without returning its password hash', async () => {
-    query.mockResolvedValueOnce([]);
-    query.mockResolvedValueOnce({ insertId: 7 });
+  test('creates an active student account without returning its password hash', async () => {
+    query.mockResolvedValueOnce([]); // findByEmail
+    query.mockResolvedValueOnce({ insertId: 7 }); // INSERT INTO users
+    query.mockResolvedValueOnce([]); // getStudentByEmail (no existing student)
+    query.mockResolvedValueOnce({ insertId: 60 }); // INSERT INTO students
+    query.mockResolvedValueOnce({ affectedRows: 1 }); // UPDATE students SET code
+    query.mockResolvedValueOnce([{ id: 60, code: 'STU-060', first_name: 'New', last_name: 'User', email: 'new@school.edu' }]); // getStudentById
+    query.mockResolvedValueOnce({ affectedRows: 1 }); // UPDATE users SET student_id
+    query.mockResolvedValueOnce([{ id: 7, name: 'New User', email: 'new@school.edu', role: 'student', status: 'active', last_login: null }]); // findById
 
     const res = await request(app)
       .post('/api/auth/register')
@@ -101,11 +107,11 @@ describe('POST /api/auth/register', () => {
       id: 7,
       name: 'New User',
       email: 'new@school.edu',
-      role: 'moderator',
+      role: 'student',
       status: 'active',
       lastLogin: null,
     });
-    expect(query).toHaveBeenLastCalledWith(
+    expect(query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO users'),
       ['New User', 'new@school.edu', hashPassword('password1')],
     );

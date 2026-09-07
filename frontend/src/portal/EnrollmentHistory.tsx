@@ -35,9 +35,13 @@ export default function EnrollmentHistory({ session }: EnrollmentHistoryProps) {
     [enrollments, classes, subjects],
   )
   const sorted = [...items].sort((a, b) => b.enrolledAt.localeCompare(a.enrolledAt))
-  const count = { enrolled: 0, dropped: 0 }
-  for (const i of items) if (i.status === 'enrolled') count.enrolled++
-  else if (i.status === 'dropped') count.dropped++
+  const count = { approved: 0, pending: 0, rejected: 0, dropped: 0 }
+  for (const i of items) {
+    if (i.status === 'approved') count.approved++
+    else if (i.status === 'pending') count.pending++
+    else if (i.status === 'rejected') count.rejected++
+    else if (i.status === 'dropped') count.dropped++
+  }
 
   return (
     <div className="p-5 sm:p-6 space-y-5">
@@ -47,13 +51,21 @@ export default function EnrollmentHistory({ session }: EnrollmentHistoryProps) {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border p-4 text-center" style={{ borderColor: '#e2e7f0' }}>
-          <div className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#059669' }}>{count.enrolled}</div>
-          <div className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>Enrolled</div>
+          <div className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#059669' }}>{count.approved}</div>
+          <div className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>Approved</div>
         </div>
         <div className="bg-white rounded-xl border p-4 text-center" style={{ borderColor: '#e2e7f0' }}>
-          <div className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#e11d48' }}>{count.dropped}</div>
+          <div className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#b45309' }}>{count.pending}</div>
+          <div className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>Pending</div>
+        </div>
+        <div className="bg-white rounded-xl border p-4 text-center" style={{ borderColor: '#e2e7f0' }}>
+          <div className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#e11d48' }}>{count.rejected}</div>
+          <div className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>Rejected</div>
+        </div>
+        <div className="bg-white rounded-xl border p-4 text-center" style={{ borderColor: '#e2e7f0' }}>
+          <div className="text-2xl font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#6b7280' }}>{count.dropped}</div>
           <div className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>Dropped</div>
         </div>
       </div>

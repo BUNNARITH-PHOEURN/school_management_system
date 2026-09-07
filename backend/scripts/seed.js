@@ -233,12 +233,12 @@ async function main() {
     const picked = new Set();
     while (picked.size < nClasses) picked.add(pick(classRows));
     for (const classId of picked) {
-      const status = rand() < 0.93 ? 'enrolled' : 'dropped';
+      const status = rand() < 0.93 ? 'approved' : 'dropped';
       await connection.query(
         'INSERT INTO enrollments (student_id, class_id, enrolled_at, status) VALUES (?, ?, ?, ?)',
         [studentId, classId, rand() < 0.8 ? '2025-08-10' : '2025-08-12', status],
       );
-      if (status === 'enrolled') enrollmentPairs.push([studentId, classId]);
+      if (status === 'approved') enrollmentPairs.push([studentId, classId]);
     }
   }
 
@@ -278,7 +278,7 @@ async function main() {
   const demoClassIds = classRows.slice(0, 6);
   const [demoPairs] = await connection.query(
     'SELECT student_id, class_id FROM enrollments WHERE status = ? AND class_id IN (?)',
-    ['enrolled', demoClassIds],
+    ['approved', demoClassIds],
   );
   for (const [i, day] of recentDays.entries()) {
     for (const { student_id, class_id } of demoPairs) {

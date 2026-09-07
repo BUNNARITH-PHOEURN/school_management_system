@@ -78,7 +78,8 @@ export default function SubjectEnrollment({ session }: SubjectEnrollmentProps) {
       })
       .filter((item): item is SubjectItem => item !== null)
   }, [enrollments, classes, subjects])
-  const enrolledIds = new Set(enrollments.filter(e => e.status === 'enrolled').map(e => e.classId))
+  const enrolledIds = new Set(enrollments.filter(e => e.status === 'approved').map(e => e.classId))
+  const pendingByClass = new Map(enrollments.filter(e => e.status === 'pending').map(e => [e.classId, e.status]))
   const subjectDept = new Map(subjects.map(s => [s.id, s.department_id]))
 
   const availableItems = useMemo(() => {
@@ -101,7 +102,7 @@ export default function SubjectEnrollment({ session }: SubjectEnrollmentProps) {
     setSubmitting(true)
     try {
       await createEnrollment({ studentId: session.studentId as number, classId: pending.classId })
-      toast('success', `Enrolled in ${pending.subjectName}.`)
+      toast('success', `Enrollment request for ${pending.subjectName} submitted for review.`)
       setPending(null)
       await load()
     } catch (err) {
@@ -161,6 +162,7 @@ export default function SubjectEnrollment({ session }: SubjectEnrollmentProps) {
           {filtered.map(({ item }) => {
             const enrolled = enrolledIds.has(item.classId)
             const dropped = enrollments.find(e => e.classId === item.classId && e.status === 'dropped')
+            const pending = pendingByClass.has(item.classId)
             return (
               <div key={item.enrollmentId !== 0 ? item.enrollmentId : `${item.classId}-${item.subjectId}`} className="bg-white rounded-xl border p-5 flex flex-col" style={{ borderColor: '#e2e7f0' }}>
                 <div className="flex items-start justify-between gap-2">
@@ -182,7 +184,7 @@ export default function SubjectEnrollment({ session }: SubjectEnrollmentProps) {
                   </div>
                 </div>
                 <div className="mt-4 pt-4 border-t flex-1 flex items-end" style={{ borderColor: '#f0f3fa' }}>
-                  <EnrollButton item={item} enrolled={enrolled} dropped={!!dropped} onEnroll={setPending} full />
+                  <EnrollButton item={item} enrolled={enrolled} pending={pending} dropped={!!dropped} onEnroll={setPending} full />
                 </div>
               </div>
             )
@@ -205,6 +207,7 @@ export default function SubjectEnrollment({ session }: SubjectEnrollmentProps) {
               {filtered.map(({ item }) => {
                 const enrolled = enrolledIds.has(item.classId)
                 const dropped = enrollments.find(e => e.classId === item.classId && e.status === 'dropped')
+                const pending = pendingByClass.has(item.classId)
                 return (
                   <tr key={item.enrollmentId !== 0 ? item.enrollmentId : `${item.classId}-${item.subjectId}`} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3">
@@ -223,7 +226,7 @@ export default function SubjectEnrollment({ session }: SubjectEnrollmentProps) {
                     <td className="px-4 py-3 text-sm hidden md:table-cell" style={{ color: '#6b7280' }}>{item.schedule}</td>
                     <td className="px-4 py-3 text-sm hidden sm:table-cell" style={{ color: '#374151' }}>{item.room || 'TBD'}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <EnrollButton item={item} enrolled={enrolled} dropped={!!dropped} onEnroll={setPending} />
+                      <EnrollButton item={item} enrolled={enrolled} pending={pending} dropped={!!dropped} onEnroll={setPending} />
                     </td>
                   </tr>
                 )
@@ -245,7 +248,7 @@ export default function SubjectEnrollment({ session }: SubjectEnrollmentProps) {
               Cancel
             </button>
             <button onClick={handleConfirm} disabled={submitting} className="px-4 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-60" style={{ backgroundColor: '#3b5bdb', fontFamily: 'Outfit, sans-serif' }}>
-              {submitting ? 'Enrolling…' : 'Confirm Enrollment'}
+              {submitting ? 'Submitting…' : 'Submit Request'}
             </button>
           </>
         }
@@ -274,7 +277,7 @@ export default function SubjectEnrollment({ session }: SubjectEnrollmentProps) {
               ))}
             </div>
             <p className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>
-              You're about to enroll in <strong style={{ color: '#1a1f36' }}>{pending.subjectName}</strong>. You can review your subjects anytime under <strong style={{ color: '#1a1f36' }}>My Subjects</strong>.
+              You're requesting to enroll in <strong style={{ color: '#1a1f36' }}>{pending.subjectName}</strong>. A moderator will review your request before it's approved.
             </p>
           </div>
         )}
@@ -291,9 +294,10 @@ function adminItems(items: SubjectItem[]): SubjectItem[] {
   return Array.from(byClass.values())
 }
 
-function EnrollButton({ item, enrolled, dropped, onEnroll, full }: {
+function EnrollButton({ item, enrolled, pending, dropped, onEnroll, full }: {
   item: SubjectItem
   enrolled: boolean
+  pending: boolean
   dropped: boolean
   onEnroll: (item: SubjectItem) => void
   full?: boolean
@@ -302,7 +306,14 @@ function EnrollButton({ item, enrolled, dropped, onEnroll, full }: {
   if (enrolled) {
     return (
       <button disabled className={`${base} text-white`} style={{ backgroundColor: '#059669', cursor: 'not-allowed', fontFamily: 'Outfit, sans-serif' }}>
-        ✓ Enrolled
+        ✓ Approved
+      </button>
+    )
+  }
+  if (pending) {
+    return (
+      <button disabled className={`${base} text-white`} style={{ backgroundColor: '#b45309', cursor: 'not-allowed', fontFamily: 'Outfit, sans-serif' }}>
+        ⏳ Pending Review
       </button>
     )
   }

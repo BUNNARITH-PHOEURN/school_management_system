@@ -140,7 +140,9 @@ CREATE TABLE IF NOT EXISTS enrollments (
   student_id INT NOT NULL,
   class_id INT NOT NULL,
   enrolled_at DATE NULL,
-  status ENUM('enrolled', 'dropped') NOT NULL DEFAULT 'enrolled',
+  status ENUM('pending', 'approved', 'rejected', 'dropped') NOT NULL DEFAULT 'pending',
+  reviewed_by INT NULL,
+  reviewed_at DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY enrollment_unique (student_id, class_id),
   CONSTRAINT fk_enrollments_student
@@ -182,7 +184,7 @@ CREATE TABLE IF NOT EXISTS users (
   bio TEXT NULL,
   avatar_url MEDIUMTEXT NULL,
   password_hash VARCHAR(255) NULL,
-  role ENUM('admin', 'moderator', 'student') NOT NULL DEFAULT 'moderator',
+  role ENUM('admin', 'moderator', 'student') NOT NULL DEFAULT 'student',
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   teacher_id INT NULL,
   student_id INT NULL,
@@ -202,6 +204,43 @@ SET @col_exists = (
 SET @ddl = IF(
   @col_exists = 0,
   'ALTER TABLE users ADD COLUMN student_id INT NULL AFTER teacher_id, ADD KEY users_student_id (student_id)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Idempotent migration for enrollments:
+-- 1) widen the status enum to include pending/rejected,
+-- 2) migrate existing 'enrolled' rows -> 'approved',
+-- 3) add review audit columns when missing.
+SET @enum_ok = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'enrollments'
+    AND COLUMN_NAME = 'status'
+    AND COLUMN_TYPE LIKE '%pending%'
+    AND COLUMN_TYPE LIKE '%rejected%'
+);
+SET @ddl = IF(
+  @enum_ok = 0,
+  "ALTER TABLE enrollments
+     MODIFY COLUMN status ENUM('pending','approved','rejected','dropped') NOT NULL DEFAULT 'pending',
+     MODIFY COLUMN enrolled_at DATE NULL",
+  'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE enrollments SET status = 'approved' WHERE status = 'enrolled';
+
+SET @rb_exists = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'enrollments' AND COLUMN_NAME = 'reviewed_by'
+);
+SET @ddl = IF(
+  @rb_exists = 0,
+  'ALTER TABLE enrollments ADD COLUMN reviewed_by INT NULL AFTER status, ADD COLUMN reviewed_at DATETIME NULL AFTER reviewed_by',
   'SELECT 1'
 );
 PREPARE stmt FROM @ddl;

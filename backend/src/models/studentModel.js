@@ -34,6 +34,39 @@ async function getStudentById(id) {
   return rows[0];
 }
 
+async function getStudentByEmail(email) {
+  const rows = await query(
+    'SELECT id, code, email FROM students WHERE email = ? LIMIT 1',
+    [email],
+  );
+  return rows[0];
+}
+
+// Ensure a student record exists for a user account and return its id.
+// If no student matches by email, a minimal record is created from the name.
+async function ensureStudentForUser(user) {
+  const existing = await getStudentByEmail(user.email);
+  if (existing) {
+    if (user.student_id !== existing.id) {
+      await query('UPDATE users SET student_id = ? WHERE id = ?', [existing.id, user.id]);
+    }
+    return existing.id;
+  }
+
+  const nameParts = String(user.name || '').trim().split(/\s+/);
+  const firstName = nameParts[0] || 'Student';
+  const lastName = nameParts.slice(1).join(' ') || firstName;
+
+  const created = await createStudent({
+    first_name: firstName,
+    last_name: lastName,
+    email: user.email,
+  });
+
+  await query('UPDATE users SET student_id = ? WHERE id = ?', [created.id, user.id]);
+  return created.id;
+}
+
 async function createStudent(student) {
   const fields = STUDENT_FIELDS.filter((f) => student[f] !== undefined);
   const placeholders = fields.map(() => '?').join(', ');
@@ -83,6 +116,8 @@ async function deleteStudent(id) {
 module.exports = {
   getAllStudents,
   getStudentById,
+  getStudentByEmail,
+  ensureStudentForUser,
   createStudent,
   getNextStudentCode,
   updateStudent,

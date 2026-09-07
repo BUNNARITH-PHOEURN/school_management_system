@@ -66,7 +66,7 @@ export default function Attendance() {
   }, [selectedClass, selectedDate, loading])
 
   const activeClasses = classes.filter(c => c.status === 'active')
-  const roster = enrollments.filter(e => e.classId === selectedClass && e.status === 'enrolled')
+  const roster = enrollments.filter(e => e.classId === selectedClass && e.status === 'approved')
 
   const newRecord = (studentId: number, status: AttendanceStatus, remarks = ''): AttendanceWithNames => {
     const e = roster.find(r => r.studentId === studentId)

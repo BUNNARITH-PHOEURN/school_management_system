@@ -114,6 +114,7 @@ export default function Users() {
           <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as Role }))} className={inputClass} style={inputStyle}>
             <option value="admin">Admin</option>
             <option value="moderator">Moderator</option>
+            <option value="student">Student</option>
           </select>
         </FormField>
         {!editing && (

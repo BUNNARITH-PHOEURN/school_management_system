@@ -46,9 +46,9 @@ export default function StudentDashboard({ session, profile, onNavigate }: Stude
       .finally(() => setLoading(false))
   }, [session.studentId])
 
-  const myEnrollments = enrollments.filter(e => e.status === 'enrolled')
+  const myEnrollments = enrollments.filter(e => e.status === 'approved')
   const items = buildSubjectItems(enrollments, classes, subjects)
-  const activeItems = items.filter(i => i.status === 'enrolled')
+  const activeItems = items.filter(i => i.status === 'approved')
   const totalCredits = activeItems.reduce((sum, i) => sum + i.credits, 0)
   const available = classes.filter(c => c.status === 'active').length - myEnrollments.length
 

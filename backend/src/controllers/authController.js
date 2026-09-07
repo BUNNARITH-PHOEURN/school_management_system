@@ -128,7 +128,9 @@ exports.register = asyncHandler(async (req, res) => {
       email: normalizedEmail,
       passwordHash: hashPassword(password),
     });
-    return res.status(201).json({ user: toSessionUser(user) });
+    await studentModel.ensureStudentForUser(user);
+    const fresh = await userModel.findById(user.id);
+    return res.status(201).json({ user: toSessionUser(fresh) });
   } catch (error) {
     if (error && error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'An account with this email already exists' });

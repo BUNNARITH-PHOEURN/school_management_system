@@ -9,6 +9,8 @@ router.use(requireAuth);
 router.get('/', controller.getAllEnrollments);
 router.get('/:id', controller.getEnrollmentById);
 router.post('/', controller.createEnrollment);
+router.patch('/:id/approve', controller.approveEnrollment);
+router.patch('/:id/reject', controller.rejectEnrollment);
 router.put('/:id', controller.updateEnrollment);
 router.delete('/:id', controller.deleteEnrollment);
 

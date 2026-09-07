@@ -30,10 +30,16 @@ const enrollmentRow = {
   student_id: 1,
   class_id: 2,
   enrolled_at: '2026-08-24',
-  status: 'enrolled',
+  status: 'approved',
+  reviewed_by: null,
+  reviewed_at: null,
   student_code: 'STU-001',
   student_name: 'Amara Osei',
   class_name: 'CS Intro — Section A',
+  subject_code: 'CS101',
+  subject_name: 'Intro to CS',
+  teacher_names: 'Kofi Mensah',
+  reviewed_by_name: null,
 };
 
 const adminHeader = { 'x-user-id': '1' };
@@ -42,6 +48,14 @@ const studentHeader = { 'x-user-id': '2' };
 beforeEach(() => {
   query.mockReset();
 });
+
+// Helper: the auth middleware looks up the user via "FROM users"; other lookups
+// are enrollment logic. We route based on the SQL text.
+function mockAuth(userRow) {
+  query.mockImplementation(async (sql) =>
+    String(sql).includes('FROM users') ? [userRow] : [],
+  );
+}
 
 describe('authentication guard', () => {
   test('returns 401 when no x-user-id header is sent', async () => {
@@ -73,17 +87,19 @@ describe('GET /api/enrollments', () => {
       student_name: 'Amara Osei',
       student_code: 'STU-001',
       class_name: 'CS Intro — Section A',
+      subject_name: 'Intro to CS',
+      teacher_names: 'Kofi Mensah',
     });
   });
 });
 
 describe('POST /api/enrollments', () => {
-  test('returns 201 and creates the enrollment', async () => {
+  test('returns 201 and creates the enrollment as pending', async () => {
     query.mockImplementation(async (sql) => {
       if (sql.includes('FROM users')) return [adminRow];
       if (sql.startsWith('SELECT * FROM enrollments WHERE')) return [];
       if (sql.startsWith('INSERT')) return { insertId: 5 };
-      return [{ ...enrollmentRow, id: 5, student_id: 3, class_id: 5 }];
+      return [{ ...enrollmentRow, id: 5, student_id: 3, class_id: 5, status: 'pending' }];
     });
 
     const res = await request(app)
@@ -92,7 +108,7 @@ describe('POST /api/enrollments', () => {
       .send({ student_id: 3, class_id: 5 });
 
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ id: 5, student_id: 3, class_id: 5 });
+    expect(res.body).toMatchObject({ id: 5, student_id: 3, class_id: 5, status: 'pending' });
   });
 
   test('forces a student to enroll as themselves ignoring the body student_id', async () => {
@@ -100,7 +116,7 @@ describe('POST /api/enrollments', () => {
       if (sql.includes('FROM users')) return [studentRow];
       if (sql.startsWith('SELECT * FROM enrollments WHERE')) return [];
       if (sql.startsWith('INSERT')) return { insertId: 7 };
-      return [{ ...enrollmentRow, id: 7, student_id: 42, class_id: 5 }];
+      return [{ ...enrollmentRow, id: 7, student_id: 42, class_id: 5, status: 'pending' }];
     });
 
     const res = await request(app)
@@ -125,7 +141,22 @@ describe('POST /api/enrollments', () => {
     expect(res.status).toBe(403);
   });
 
-  test('returns 400 when the student is already enrolled', async () => {
+  test('returns 409 when a request is already pending', async () => {
+    query.mockImplementation(async (sql) =>
+      sql.includes('FROM users')
+        ? [adminRow]
+        : [{ ...enrollmentRow, id: 1, status: 'pending' }],
+    );
+
+    const res = await request(app)
+      .post('/api/enrollments')
+      .set(adminHeader)
+      .send({ student_id: 1, class_id: 2 });
+
+    expect(res.status).toBe(409);
+  });
+
+  test('returns 400 when the student is already approved', async () => {
     query.mockImplementation(async (sql) =>
       sql.includes('FROM users') ? [adminRow] : [enrollmentRow],
     );
@@ -139,14 +170,14 @@ describe('POST /api/enrollments', () => {
     expect(res.body).toEqual({ error: 'Student is already enrolled in this class' });
   });
 
-  test('re-enrolls a dropped student by flipping status back to enrolled', async () => {
+  test('re-submits a rejected request by resetting it to pending', async () => {
     query.mockImplementation(async (sql) => {
       if (sql.includes('FROM users')) return [adminRow];
       if (sql.startsWith('SELECT * FROM enrollments WHERE')) {
-        return [{ ...enrollmentRow, id: 9, status: 'dropped' }];
+        return [{ ...enrollmentRow, id: 9, status: 'rejected' }];
       }
-      if (sql.startsWith('UPDATE')) return { affectedRows: 1 };
-      return [{ ...enrollmentRow, id: 9, status: 'enrolled' }];
+      if (sql.includes('UPDATE enrollments SET status =')) return { affectedRows: 1 };
+      return [{ ...enrollmentRow, id: 9, status: 'pending' }];
     });
 
     const res = await request(app)
@@ -155,7 +186,7 @@ describe('POST /api/enrollments', () => {
       .send({ student_id: 1, class_id: 2 });
 
     expect(res.status).toBe(201);
-    expect(res.body.status).toBe('enrolled');
+    expect(res.body.status).toBe('pending');
   });
 
   test('returns 400 when ids are missing', async () => {
@@ -172,13 +203,111 @@ describe('POST /api/enrollments', () => {
   });
 });
 
+// For review actions the controller reads the enrollment (GET), then updates
+// (review/UPDATE), then reads again. We dispatch by call order.
+function mockReview(userRow, currentRow, updatedRow) {
+  let calls = 0;
+  query.mockImplementation(async (sql) => {
+    if (String(sql).includes('FROM users')) return [userRow];
+    calls += 1;
+    if (String(sql).includes('UPDATE enrollments')) return { affectedRows: 1 };
+    return [calls === 1 ? currentRow : updatedRow];
+  });
+}
+
+describe('PATCH /api/enrollments/:id/approve', () => {
+  test('returns 200 and approves a pending enrollment', async () => {
+    mockReview(
+      adminRow,
+      { ...enrollmentRow, status: 'pending' },
+      { ...enrollmentRow, status: 'approved' },
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/approve')
+      .set(adminHeader);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('approved');
+  });
+
+  test('returns 403 when a student tries to approve', async () => {
+    query.mockImplementation(async (sql) =>
+      sql.includes('FROM users') ? [studentRow] : [enrollmentRow],
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/approve')
+      .set(studentHeader);
+
+    expect(res.status).toBe(403);
+  });
+
+  test('returns 400 when the enrollment is not pending', async () => {
+    query.mockImplementation(async (sql) =>
+      sql.includes('FROM users') ? [adminRow] : [enrollmentRow],
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/approve')
+      .set(adminHeader);
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('PATCH /api/enrollments/:id/reject', () => {
+  test('returns 200 and rejects a pending enrollment', async () => {
+    mockReview(
+      adminRow,
+      { ...enrollmentRow, status: 'pending' },
+      { ...enrollmentRow, status: 'rejected' },
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/reject')
+      .set(adminHeader);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('rejected');
+  });
+
+  test('returns 403 when a student tries to reject', async () => {
+    query.mockImplementation(async (sql) =>
+      sql.includes('FROM users') ? [studentRow] : [enrollmentRow],
+    );
+
+    const res = await request(app)
+      .patch('/api/enrollments/1/reject')
+      .set(studentHeader);
+
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('PUT /api/enrollments/:id', () => {
-  test('returns 200 and updates the status', async () => {
-    query.mockImplementation(async (sql) => {
-      if (sql.includes('FROM users')) return [adminRow];
-      if (sql.startsWith('UPDATE')) return { affectedRows: 1 };
-      return [{ ...enrollmentRow, status: 'dropped' }];
-    });
+  test('returns 200 and lets a moderator approve a pending enrollment', async () => {
+    mockReview(
+      adminRow,
+      { ...enrollmentRow, status: 'pending' },
+      { ...enrollmentRow, status: 'approved' },
+    );
+
+    const res = await request(app)
+      .put('/api/enrollments/1')
+      .set(adminHeader)
+      .send({ status: 'approved' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('approved');
+  });
+
+  test('returns 200 and lets a moderator drop an approved enrollment', async () => {
+    mockReview(
+      adminRow,
+      { ...enrollmentRow, status: 'approved' },
+      { ...enrollmentRow, status: 'dropped' },
+    );
 
     const res = await request(app)
       .put('/api/enrollments/1')
@@ -189,12 +318,12 @@ describe('PUT /api/enrollments/:id', () => {
     expect(res.body.status).toBe('dropped');
   });
 
-  test('allows a student to update their own enrollment', async () => {
-    query.mockImplementation(async (sql) => {
-      if (sql.includes('FROM users')) return [studentRow];
-      if (sql.startsWith('UPDATE')) return { affectedRows: 1 };
-      return [{ ...enrollmentRow, student_id: 42, status: 'dropped' }];
-    });
+  test('lets a student drop their own approved enrollment', async () => {
+    mockReview(
+      studentRow,
+      { ...enrollmentRow, student_id: 42, status: 'approved' },
+      { ...enrollmentRow, student_id: 42, status: 'dropped' },
+    );
 
     const res = await request(app)
       .put('/api/enrollments/1')
@@ -203,6 +332,19 @@ describe('PUT /api/enrollments/:id', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('dropped');
+  });
+
+  test('returns 403 when a student tries to approve', async () => {
+    query.mockImplementation(async (sql) =>
+      sql.includes('FROM users') ? [studentRow] : [enrollmentRow],
+    );
+
+    const res = await request(app)
+      .put('/api/enrollments/1')
+      .set(studentHeader)
+      .send({ status: 'approved' });
+
+    expect(res.status).toBe(403);
   });
 
   test('returns 403 when a student updates someone else enrollment', async () => {
@@ -220,7 +362,7 @@ describe('PUT /api/enrollments/:id', () => {
 
   test('returns 400 for an invalid status', async () => {
     query.mockImplementation(async (sql) =>
-      sql.includes('FROM users') ? [adminRow] : [],
+      sql.includes('FROM users') ? [adminRow] : [enrollmentRow],
     );
 
     const res = await request(app)
@@ -234,7 +376,7 @@ describe('PUT /api/enrollments/:id', () => {
   test('returns 404 when the enrollment does not exist', async () => {
     query.mockImplementation(async (sql) => {
       if (sql.includes('FROM users')) return [adminRow];
-      if (sql.startsWith('UPDATE')) return { affectedRows: 0 };
+      if (sql.includes('UPDATE enrollments')) return { affectedRows: 0 };
       return [];
     });
 
@@ -259,9 +401,9 @@ describe('DELETE /api/enrollments/:id', () => {
     expect(res.body).toEqual({ message: 'Enrollment deleted successfully' });
   });
 
-  test('returns 403 when a student deletes someone else enrollment', async () => {
+  test('returns 403 when a student deletes an enrollment', async () => {
     query.mockImplementation(async (sql) =>
-      sql.includes('FROM users') ? [studentRow] : [enrollmentRow],
+      sql.includes('FROM users') ? [studentRow] : [],
     );
 
     const res = await request(app).delete('/api/enrollments/1').set(studentHeader);

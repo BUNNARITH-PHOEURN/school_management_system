@@ -29,14 +29,14 @@ async function create({ name, email, passwordHash, role, avatarUrl, studentId })
     )
     : await query(
       `INSERT INTO users (name, email, password_hash, role, status)
-       VALUES (?, ?, ?, 'moderator', 'active')`,
+       VALUES (?, ?, ?, 'student', 'active')`,
       [name, email, passwordHash],
     );
   return {
     id: result.insertId,
     name,
     email,
-    role: role || 'moderator',
+    role: role || 'student',
     status: 'active',
     last_login: null,
     ...(avatarUrl ? { avatarUrl } : {}),

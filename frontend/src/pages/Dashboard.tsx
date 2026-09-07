@@ -181,7 +181,7 @@ export default function Dashboard() {
           </div>
           <div className="p-6 space-y-4">
             {classes.filter(c => c.status === 'active').slice(0, 4).map(cls => {
-              const enrolled = enrollments.filter(e => e.classId === cls.id && e.status === 'enrolled').length
+              const enrolled = enrollments.filter(e => e.classId === cls.id && e.status === 'approved').length
               const capacity = 15
               const pct = Math.round((enrolled / capacity) * 100)
               return (
@@ -202,16 +202,16 @@ export default function Dashboard() {
           <div className="px-6 pb-5 pt-2 border-t" style={{ borderColor: '#f0f3fa' }}>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
-                <div className="text-lg font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{enrollments.filter(e => e.status === 'enrolled').length}</div>
-                <div className="text-xs" style={{ color: '#9ca3af' }}>Enrolled</div>
+                <div className="text-lg font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{enrollments.filter(e => e.status === 'approved').length}</div>
+                <div className="text-xs" style={{ color: '#9ca3af' }}>Approved</div>
+              </div>
+              <div>
+                <div className="text-lg font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{enrollments.filter(e => e.status === 'pending').length}</div>
+                <div className="text-xs" style={{ color: '#9ca3af' }}>Pending</div>
               </div>
               <div>
                 <div className="text-lg font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{enrollments.filter(e => e.status === 'dropped').length}</div>
                 <div className="text-xs" style={{ color: '#9ca3af' }}>Dropped</div>
-              </div>
-              <div>
-                <div className="text-lg font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>{enrollments.filter(e => e.status === 'completed').length}</div>
-                <div className="text-xs" style={{ color: '#9ca3af' }}>Completed</div>
               </div>
             </div>
           </div>

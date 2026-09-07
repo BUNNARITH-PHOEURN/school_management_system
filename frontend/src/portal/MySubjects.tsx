@@ -51,7 +51,8 @@ export default function MySubjects({ session }: MySubjectsProps) {
     () => buildSubjectItems(enrollments, classes, subjects).filter(i => i.subjectId > 0),
     [enrollments, classes, subjects],
   )
-  const activeItems = items.filter(i => i.status === 'enrolled')
+  const activeItems = items.filter(i => i.status === 'approved')
+  const pendingItems = items.filter(i => i.status === 'pending')
   const totalCredits = activeItems.reduce((sum, i) => sum + i.credits, 0)
 
   const handleDrop = async () => {
@@ -86,6 +87,20 @@ export default function MySubjects({ session }: MySubjectsProps) {
           {[0, 1, 2].map(i => (
             <div key={i} className="rounded-xl border h-40 animate-pulse" style={{ borderColor: '#e2e7f0', backgroundColor: '#f8f9fd' }} />
           ))}
+        </div>
+      ) : pendingItems.length > 0 ? (
+        <div className="bg-white rounded-xl border p-4" style={{ borderColor: '#fde68a', backgroundColor: '#fffbeb' }}>
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>⏳</div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold" style={{ fontFamily: 'Outfit, sans-serif', color: '#92400e' }}>
+                {pendingItems.length} enrollment {pendingItems.length === 1 ? 'request' : 'requests'} awaiting approval
+              </div>
+              <p className="text-xs mt-0.5" style={{ color: '#a16207' }}>
+                {pendingItems.map(i => i.subjectName).join(', ')} — you'll see these in your subjects once a moderator approves them.
+              </p>
+            </div>
+          </div>
         </div>
       ) : activeItems.length === 0 ? (
         <div className="bg-white rounded-xl border py-14 text-center" style={{ borderColor: '#e2e7f0' }}>

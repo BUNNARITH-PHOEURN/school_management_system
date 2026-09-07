@@ -1,7 +1,7 @@
 export type Status = 'active' | 'inactive'
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'permission'
 export type Role = 'admin' | 'moderator'
-export type EnrollmentStatus = 'enrolled' | 'dropped' | 'completed'
+export type EnrollmentStatus = 'pending' | 'approved' | 'rejected' | 'dropped'
 
 export interface Department {
   id: number
@@ -154,16 +154,16 @@ export const classes: Class[] = [
 ]
 
 export const enrollments: Enrollment[] = [
-  { id: 1, studentId: 1, classId: 1, enrolledAt: '2025-08-10', status: 'enrolled' },
-  { id: 2, studentId: 2, classId: 2, enrolledAt: '2025-08-10', status: 'enrolled' },
-  { id: 3, studentId: 3, classId: 3, enrolledAt: '2025-08-10', status: 'enrolled' },
-  { id: 4, studentId: 4, classId: 4, enrolledAt: '2025-08-10', status: 'enrolled' },
-  { id: 5, studentId: 5, classId: 2, enrolledAt: '2025-08-12', status: 'enrolled' },
+  { id: 1, studentId: 1, classId: 1, enrolledAt: '2025-08-10', status: 'approved' },
+  { id: 2, studentId: 2, classId: 2, enrolledAt: '2025-08-10', status: 'approved' },
+  { id: 3, studentId: 3, classId: 3, enrolledAt: '2025-08-10', status: 'approved' },
+  { id: 4, studentId: 4, classId: 4, enrolledAt: '2025-08-10', status: 'approved' },
+  { id: 5, studentId: 5, classId: 2, enrolledAt: '2025-08-12', status: 'approved' },
   { id: 6, studentId: 6, classId: 1, enrolledAt: '2025-08-10', status: 'dropped' },
-  { id: 7, studentId: 7, classId: 3, enrolledAt: '2025-08-12', status: 'enrolled' },
-  { id: 8, studentId: 8, classId: 4, enrolledAt: '2025-08-10', status: 'enrolled' },
-  { id: 9, studentId: 1, classId: 5, enrolledAt: '2025-08-10', status: 'enrolled' },
-  { id: 10, studentId: 5, classId: 5, enrolledAt: '2025-08-12', status: 'enrolled' },
+  { id: 7, studentId: 7, classId: 3, enrolledAt: '2025-08-12', status: 'approved' },
+  { id: 8, studentId: 8, classId: 4, enrolledAt: '2025-08-10', status: 'approved' },
+  { id: 9, studentId: 1, classId: 5, enrolledAt: '2025-08-10', status: 'approved' },
+  { id: 10, studentId: 5, classId: 5, enrolledAt: '2025-08-12', status: 'approved' },
 ]
 
 export const attendance: AttendanceRecord[] = [

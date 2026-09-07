@@ -32,9 +32,9 @@ export default function Badge({ variant = 'neutral', children, dot }: BadgeProps
 
 export function statusVariant(status: string): 'success' | 'danger' | 'warning' | 'info' | 'neutral' {
   switch (status) {
-    case 'active': case 'present': case 'enrolled': case 'completed': return 'success'
-    case 'inactive': case 'absent': case 'dropped': return 'danger'
-    case 'late': return 'warning'
+    case 'active': case 'present': case 'approved': case 'completed': return 'success'
+    case 'inactive': case 'absent': case 'rejected': case 'dropped': return 'danger'
+    case 'pending': case 'late': return 'warning'
     case 'permission': return 'info'
     default: return 'neutral'
   }

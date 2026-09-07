@@ -22,6 +22,14 @@ async function getTeacherById(id) {
   return rows[0];
 }
 
+async function getTeacherByEmail(email) {
+  const rows = await query(
+    'SELECT id, code, email FROM teachers WHERE email = ? LIMIT 1',
+    [email],
+  );
+  return rows[0];
+}
+
 async function createTeacher(teacher) {
   const fields = TEACHER_FIELDS.filter((field) => teacher[field] !== undefined);
   const placeholders = fields.map(() => '?').join(', ');
@@ -73,6 +81,7 @@ async function linkUser(userId, teacherId) {
 module.exports = {
   getAllTeachers,
   getTeacherById,
+  getTeacherByEmail,
   createTeacher,
   updateTeacher,
   deleteTeacher,
