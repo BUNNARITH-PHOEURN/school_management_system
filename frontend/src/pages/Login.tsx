@@ -13,11 +13,24 @@ export default function Login({ onLogin, initialRegistering = false }: LoginProp
   const [isRegistering, setIsRegistering] = useState(initialRegistering)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string; password?: string }>({})
+
+  const clearFieldError = (field: keyof typeof fieldErrors) =>
+    setFieldErrors(prev => (prev[field] ? { ...prev, [field]: undefined } : prev))
+
+  const validate = (): boolean => {
+    const errors: { name?: string; email?: string; password?: string } = {}
+    if (isRegistering && name.trim().length < 2) errors.name = 'Name must be at least 2 characters.'
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) errors.email = 'Enter a valid email address.'
+    if (password.length < 8) errors.password = 'Password must be at least 8 characters.'
+    setFieldErrors(errors)
+    return Object.keys(errors).length === 0
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (!email || !password || (isRegistering && !name)) { setError('Please fill in all fields.'); return }
+    if (!validate()) return
     setLoading(true)
     try {
       const user = isRegistering ? await register(name, email, password) : await login(email, password)
@@ -91,13 +104,25 @@ export default function Login({ onLogin, initialRegistering = false }: LoginProp
           <h1 className="text-2xl font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif', color: '#1a1f36' }}>
             {isRegistering ? 'Create your account' : 'Welcome back'}
           </h1>
-          <p className="text-sm mb-8" style={{ color: '#6b7280' }}>{isRegistering ? 'Register as a school moderator' : 'Sign in to your account to continue'}</p>
+          <p className="text-sm mb-8" style={{ color: '#6b7280' }}>{isRegistering ? 'Create your student account' : 'Sign in to your account to continue'}</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {isRegistering && (
               <div>
                 <label className="block text-sm font-medium mb-1.5" style={{ color: '#374151' }}>Full name</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" className="w-full px-3.5 py-2.5 rounded-lg border text-sm outline-none" style={{ borderColor: '#e2e7f0', color: '#1a1f36' }} />
+                <input
+                  type="text"
+                  value={name}
+                  onChange={e => { setName(e.target.value); clearFieldError('name') }}
+                  placeholder="Your name"
+                  className="w-full px-3.5 py-2.5 rounded-lg border text-sm outline-none transition-all"
+                  style={{ borderColor: fieldErrors.name ? '#fca5a5' : '#e2e7f0', color: '#1a1f36' }}
+                  onFocus={e => (e.target.style.borderColor = '#3b5bdb')}
+                  onBlur={e => (e.target.style.borderColor = fieldErrors.name ? '#fca5a5' : '#e2e7f0')}
+                />
+                {fieldErrors.name && (
+                  <p className="text-xs mt-1" style={{ color: '#e11d48' }}>{fieldErrors.name}</p>
+                )}
               </div>
             )}
             <div>
@@ -105,13 +130,16 @@ export default function Login({ onLogin, initialRegistering = false }: LoginProp
               <input
                 type="email"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="admin@school.edu"
+                onChange={e => { setEmail(e.target.value); clearFieldError('email') }}
+                placeholder="you@example.com"
                 className="w-full px-3.5 py-2.5 rounded-lg border text-sm outline-none transition-all"
-                style={{ borderColor: '#e2e7f0', color: '#1a1f36' }}
+                style={{ borderColor: fieldErrors.email ? '#fca5a5' : '#e2e7f0', color: '#1a1f36' }}
                 onFocus={e => (e.target.style.borderColor = '#3b5bdb')}
-                onBlur={e => (e.target.style.borderColor = '#e2e7f0')}
+                onBlur={e => (e.target.style.borderColor = fieldErrors.email ? '#fca5a5' : '#e2e7f0')}
               />
+              {fieldErrors.email && (
+                <p className="text-xs mt-1" style={{ color: '#e11d48' }}>{fieldErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -122,13 +150,16 @@ export default function Login({ onLogin, initialRegistering = false }: LoginProp
               <input
                 type="password"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
+                onChange={e => { setPassword(e.target.value); clearFieldError('password') }}
+                placeholder="At least 8 characters"
                 className="w-full px-3.5 py-2.5 rounded-lg border text-sm outline-none transition-all"
-                style={{ borderColor: '#e2e7f0', color: '#1a1f36' }}
+                style={{ borderColor: fieldErrors.password ? '#fca5a5' : '#e2e7f0', color: '#1a1f36' }}
                 onFocus={e => (e.target.style.borderColor = '#3b5bdb')}
-                onBlur={e => (e.target.style.borderColor = '#e2e7f0')}
+                onBlur={e => (e.target.style.borderColor = fieldErrors.password ? '#fca5a5' : '#e2e7f0')}
               />
+              {fieldErrors.password && (
+                <p className="text-xs mt-1" style={{ color: '#e11d48' }}>{fieldErrors.password}</p>
+              )}
             </div>
 
             {error && (
@@ -145,7 +176,9 @@ export default function Login({ onLogin, initialRegistering = false }: LoginProp
               onMouseEnter={e => { if (!loading) (e.currentTarget.style.backgroundColor = '#3451c7') }}
               onMouseLeave={e => { if (!loading) (e.currentTarget.style.backgroundColor = '#3b5bdb') }}
             >
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading
+                ? (isRegistering ? 'Creating account…' : 'Signing in…')
+                : (isRegistering ? 'Create account' : 'Sign in')}
             </button>
           </form>
 
@@ -153,7 +186,7 @@ export default function Login({ onLogin, initialRegistering = false }: LoginProp
             {isRegistering ? 'Already have an account?' : 'Need an account?'}{' '}
             <button
               type="button"
-              onClick={() => { setIsRegistering(value => !value); setError('') }}
+              onClick={() => { setIsRegistering(value => !value); setError(''); setFieldErrors({}) }}
               className="font-medium"
               style={{ color: '#3b5bdb' }}
             >
