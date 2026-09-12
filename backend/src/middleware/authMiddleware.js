@@ -1,17 +1,26 @@
 const userModel = require('../models/userModel');
+const { verifyToken } = require('../utils/token');
 
-function parseId(value) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+function parseBearer(header) {
+  if (typeof header !== 'string') return null;
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : null;
 }
 
 async function requireAuth(req, res, next) {
-  const userId = parseId(req.get('x-user-id'));
-  if (!userId) {
-    return res.status(401).json({ error: 'Missing x-user-id header' });
+  const token = parseBearer(req.get('authorization'));
+  if (!token) {
+    return res.status(401).json({ error: 'Missing or malformed Authorization header' });
   }
 
-  const user = await userModel.findById(userId);
+  let payload;
+  try {
+    payload = verifyToken(token);
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+
+  const user = await userModel.findById(Number.parseInt(payload.sub, 10));
   if (!user || user.status !== 'active') {
     return res.status(401).json({ error: 'Invalid or inactive user' });
   }

@@ -1,6 +1,7 @@
 const userModel = require('../models/userModel');
 const studentModel = require('../models/studentModel');
-const { hashPassword } = require('../utils/password');
+const { hashPassword, verifyPassword } = require('../utils/password');
+const { signToken } = require('../utils/token');
 
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
@@ -111,7 +112,7 @@ exports.register = asyncHandler(async (req, res) => {
       }
 
       const fresh = await userModel.findById(user.id);
-      return res.status(201).json({ user: toSessionUser(fresh) });
+      return res.status(201).json({ user: toSessionUser(fresh), token: signToken(fresh) });
     } catch (error) {
       if (error && error.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ error: 'An account with this email or student code already exists' });
@@ -131,7 +132,7 @@ exports.register = asyncHandler(async (req, res) => {
     });
     await studentModel.ensureStudentForUser(user);
     const fresh = await userModel.findById(user.id);
-    return res.status(201).json({ user: toSessionUser(fresh) });
+    return res.status(201).json({ user: toSessionUser(fresh), token: signToken(fresh) });
   } catch (error) {
     if (error && error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'An account with this email already exists' });
@@ -152,29 +153,28 @@ exports.login = asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  if (!user.password_hash || user.password_hash !== hashPassword(password)) {
+  const { ok, needsRehash } = verifyPassword(password, user.password_hash);
+  if (!ok) {
     return res.status(401).json({ error: 'Invalid email or password' });
+  }
+
+  if (needsRehash) {
+    await userModel.update(user.id, { password_hash: hashPassword(password) });
   }
 
   await userModel.updateLastLogin(user.id, new Date());
 
   const sessionUser = toSessionUser(user);
   sessionUser.lastLogin = new Date();
-  res.json({ user: sessionUser });
+  res.json({ user: sessionUser, token: signToken(sessionUser) });
 });
 
 exports.me = asyncHandler(async (req, res) => {
-  const id = Number.parseInt(req.headers['x-user-id'] || '', 10);
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!req.user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const user = await userModel.findById(id);
-  if (!user || user.status !== 'active') {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  res.json({ user: toSessionUser(user) });
+  res.json({ user: toSessionUser(req.user) });
 });
 
 
@@ -191,7 +191,7 @@ exports.updateProfile = asyncHandler(async (req, res) => {
 exports.updatePassword = asyncHandler(async (req, res) => {
   const { current, next } = req.body || {};
   const user = await userModel.findByEmail(req.user.email);
-  if (!current || !next || user.password_hash !== hashPassword(current)) return res.status(400).json({ error: 'Current password is incorrect' });
+  if (!current || !next || !verifyPassword(current, user.password_hash).ok) return res.status(400).json({ error: 'Current password is incorrect' });
   if (next.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   await userModel.update(req.user.id, { password_hash: hashPassword(next) });
   res.json({ message: 'Password updated' });
