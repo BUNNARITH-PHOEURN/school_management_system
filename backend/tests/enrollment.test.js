@@ -1,6 +1,7 @@
 const request = require('supertest');
 const { query } = require('../src/config/db');
 const app = require('../src/app');
+const { authHeader } = require('./authTestUtils');
 
 jest.mock('../src/config/db', () => ({
   query: jest.fn(),
@@ -52,8 +53,8 @@ const enrollmentRow = {
   reviewed_by_name: null,
 };
 
-const adminHeader = { 'x-user-id': '1' };
-const studentHeader = { 'x-user-id': '2' };
+const adminHeader = authHeader(1, 'admin');
+const studentHeader = authHeader(2, 'student');
 
 beforeEach(() => {
   query.mockReset();
@@ -68,7 +69,7 @@ function mockAuth(userRow) {
 }
 
 describe('authentication guard', () => {
-  test('returns 401 when no x-user-id header is sent', async () => {
+  test('returns 401 when no token is sent', async () => {
     const res = await request(app).get('/api/enrollments');
 
     expect(res.status).toBe(401);
@@ -78,7 +79,7 @@ describe('authentication guard', () => {
   test('returns 401 for an unknown or inactive user', async () => {
     query.mockResolvedValue([]);
 
-    const res = await request(app).get('/api/enrollments').set('x-user-id', '999');
+    const res = await request(app).get('/api/enrollments').set(adminHeader);
 
     expect(res.status).toBe(401);
   });

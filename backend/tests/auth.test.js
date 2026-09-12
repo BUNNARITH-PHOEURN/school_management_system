@@ -2,6 +2,7 @@ const request = require('supertest');
 const { query } = require('../src/config/db');
 const app = require('../src/app');
 const { hashPassword } = require('../src/utils/password');
+const { authHeader } = require('./authTestUtils');
 
 jest.mock('../src/config/db', () => ({
   query: jest.fn(),
@@ -40,6 +41,7 @@ describe('POST /api/auth/login', () => {
       status: 'active',
     });
     expect(res.body.user.password_hash).toBeUndefined();
+    expect(typeof res.body.token).toBe('string');
     expect(query).toHaveBeenCalledWith(
       'UPDATE users SET last_login = ? WHERE id = ?',
       [expect.any(Date), 1],
@@ -111,10 +113,11 @@ describe('POST /api/auth/register', () => {
       status: 'active',
       lastLogin: null,
     });
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO users'),
-      ['New User', 'new@school.edu', hashPassword('password1')],
-    );
+    expect(typeof res.body.token).toBe('string');
+    const insertCall = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO users'));
+    expect(insertCall[1][0]).toBe('New User');
+    expect(insertCall[1][1]).toBe('new@school.edu');
+    expect(insertCall[1][2]).toMatch(/^\$2[aby]\$\d{2}\$/);
   });
 
   test('rejects a duplicate email', async () => {
@@ -143,28 +146,35 @@ describe('POST /api/auth/register', () => {
 });
 
 describe('GET /api/auth/me', () => {
-  test('returns 200 and the user when x-user-id is valid', async () => {
+  test('returns 200 and the user when a valid token is provided', async () => {
     query.mockResolvedValue([userRow]);
 
-    const res = await request(app).get('/api/auth/me').set('x-user-id', '1');
+    const res = await request(app).get('/api/auth/me').set(authHeader(1, 'admin'));
 
     expect(res.status).toBe(200);
     expect(res.body.user).toMatchObject({ id: 1, email: 'admin@school.edu' });
   });
 
-  test('returns 401 without x-user-id header', async () => {
+  test('returns 401 without an Authorization header', async () => {
     const res = await request(app).get('/api/auth/me');
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toBe('Not authenticated');
+    expect(res.body.error).toBe('Missing or malformed Authorization header');
+  });
+
+  test('returns 401 for a tampered or invalid token', async () => {
+    const res = await request(app).get('/api/auth/me').set('Authorization', 'Bearer not-a-jwt');
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Invalid or expired token');
   });
 
   test('returns 401 when the user was deleted or deactivated', async () => {
     query.mockResolvedValue([]);
 
-    const res = await request(app).get('/api/auth/me').set('x-user-id', '999');
+    const res = await request(app).get('/api/auth/me').set(authHeader(1, 'admin'));
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toBe('Not authenticated');
+    expect(res.body.error).toBe('Invalid or inactive user');
   });
 });

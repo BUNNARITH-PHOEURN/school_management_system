@@ -1,11 +1,15 @@
 const request = require('supertest');
 const { query } = require('../src/config/db');
 const app = require('../src/app');
+const { authHeader } = require('./authTestUtils');
 
 jest.mock('../src/config/db', () => ({
   query: jest.fn(),
   pool: { end: jest.fn() },
 }));
+
+const adminAuth = authHeader(1, 'admin');
+const modAuth = authHeader(2, 'moderator');
 
 const adminUser = {
   id: 1,
@@ -93,7 +97,7 @@ describe('POST /api/attendance', () => {
 
     const res = await request(app)
       .post('/api/attendance')
-      .set('x-user-id', '1')
+      .set(adminAuth)
       .send({
         student_id: 1,
         class_id: 2,
@@ -111,7 +115,7 @@ describe('POST /api/attendance', () => {
 
     const res = await request(app)
       .post('/api/attendance')
-      .set('x-user-id', '1')
+      .set(adminAuth)
       .send({ student_id: 1, class_id: 2, date: '2026-08-21', status: 'on-time' });
 
     expect(res.status).toBe(400);
@@ -123,14 +127,14 @@ describe('POST /api/attendance', () => {
 
     const res = await request(app)
       .post('/api/attendance')
-      .set('x-user-id', '1')
+      .set(adminAuth)
       .send({ student_id: 1, class_id: 2, date: '21/08/2026', status: 'present' });
 
     expect(res.status).toBe(400);
     expect(query).toHaveBeenCalledTimes(1);
   });
 
-  test('returns 401 without an x-user-id header', async () => {
+  test('returns 401 without a token', async () => {
     const res = await request(app).post('/api/attendance').send({ student_id: 1 });
 
     expect(res.status).toBe(401);
@@ -142,7 +146,7 @@ describe('POST /api/attendance', () => {
 
     const res = await request(app)
       .post('/api/attendance')
-      .set('x-user-id', '2')
+      .set(modAuth)
       .send({ student_id: 1, class_id: 6, date: '2026-08-21', status: 'present' });
 
     expect(res.status).toBe(403);
@@ -156,7 +160,7 @@ describe('POST /api/attendance', () => {
 
     const res = await request(app)
       .post('/api/attendance')
-      .set('x-user-id', '2')
+      .set(modAuth)
       .send({ student_id: 1, class_id: 2, date: today, status: 'present' });
 
     expect(res.status).toBe(403);
@@ -172,7 +176,7 @@ describe('POST /api/attendance', () => {
 
     const res = await request(app)
       .post('/api/attendance')
-      .set('x-user-id', '2')
+      .set(modAuth)
       .send({ student_id: 1, class_id: 6, date: today, status: 'present' });
 
     expect(res.status).toBe(201);
@@ -192,7 +196,7 @@ describe('POST /api/attendance/batch', () => {
 
     const res = await request(app)
       .post('/api/attendance/batch')
-      .set('x-user-id', '1')
+      .set(adminAuth)
       .send(records);
 
     expect(res.status).toBe(200);
@@ -208,7 +212,7 @@ describe('POST /api/attendance/batch', () => {
 
     const res = await request(app)
       .post('/api/attendance/batch')
-      .set('x-user-id', '1')
+      .set(adminAuth)
       .send([]);
 
     expect(res.status).toBe(400);
@@ -220,7 +224,7 @@ describe('POST /api/attendance/batch', () => {
 
     const res = await request(app)
       .post('/api/attendance/batch')
-      .set('x-user-id', '1')
+      .set(adminAuth)
       .send([{ student_id: 1, class_id: 2, date: '2026-08-21', status: 'unknown' }]);
 
     expect(res.status).toBe(400);
@@ -232,7 +236,7 @@ describe('POST /api/attendance/batch', () => {
 
     const res = await request(app)
       .post('/api/attendance/batch')
-      .set('x-user-id', '2')
+      .set(modAuth)
       .send([{ student_id: 1, class_id: 6, date: '2026-08-21', status: 'present' }]);
 
     expect(res.status).toBe(403);
@@ -249,7 +253,7 @@ describe('PUT /api/attendance/:id', () => {
 
     const res = await request(app)
       .put('/api/attendance/1')
-      .set('x-user-id', '1')
+      .set(adminAuth)
       .send({ status: 'absent', remarks: 'Family event' });
 
     expect(res.status).toBe(200);
@@ -263,7 +267,7 @@ describe('PUT /api/attendance/:id', () => {
 
     const res = await request(app)
       .put('/api/attendance/999')
-      .set('x-user-id', '1')
+      .set(adminAuth)
       .send({ status: 'absent' });
 
     expect(res.status).toBe(404);
@@ -275,7 +279,7 @@ describe('PUT /api/attendance/:id', () => {
 
     const res = await request(app)
       .put('/api/attendance/1')
-      .set('x-user-id', '2')
+      .set(modAuth)
       .send({ status: 'absent' });
 
     expect(res.status).toBe(403);
@@ -290,7 +294,7 @@ describe('PUT /api/attendance/:id', () => {
 
     const res = await request(app)
       .put('/api/attendance/1')
-      .set('x-user-id', '2')
+      .set(modAuth)
       .send({ status: 'present' });
 
     expect(res.status).toBe(403);
@@ -304,7 +308,7 @@ describe('DELETE /api/attendance/:id', () => {
     query.mockResolvedValueOnce([attendanceRow]);
     query.mockResolvedValueOnce({ affectedRows: 1 });
 
-    const res = await request(app).delete('/api/attendance/1').set('x-user-id', '1');
+    const res = await request(app).delete('/api/attendance/1').set(adminAuth);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ message: 'Attendance record deleted successfully' });
@@ -314,12 +318,12 @@ describe('DELETE /api/attendance/:id', () => {
     query.mockResolvedValueOnce([adminUser]);
     query.mockResolvedValueOnce([]);
 
-    const res = await request(app).delete('/api/attendance/999').set('x-user-id', '1');
+    const res = await request(app).delete('/api/attendance/999').set(adminAuth);
 
     expect(res.status).toBe(404);
   });
 
-  test('returns 401 without an x-user-id header', async () => {
+  test('returns 401 without a token', async () => {
     const res = await request(app).delete('/api/attendance/1');
 
     expect(res.status).toBe(401);

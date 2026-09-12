@@ -1,11 +1,15 @@
 const request = require('supertest');
 const { query } = require('../src/config/db');
 const app = require('../src/app');
+const { authHeader } = require('./authTestUtils');
 
 jest.mock('../src/config/db', () => ({
   query: jest.fn(),
   pool: { end: jest.fn() },
 }));
+
+const adminAuth = authHeader(1, 'admin');
+const modAuth = authHeader(2, 'moderator');
 
 const adminUser = {
   id: 1,
@@ -57,7 +61,7 @@ describe('GET /api/classes', () => {
 });
 
 describe('GET /api/classes/mine', () => {
-  test('returns 401 without an x-user-id header', async () => {
+  test('returns 401 without a token', async () => {
     const res = await request(app).get('/api/classes/mine');
 
     expect(res.status).toBe(401);
@@ -68,7 +72,7 @@ describe('GET /api/classes/mine', () => {
     query.mockResolvedValueOnce([adminUser]);
     query.mockResolvedValueOnce([classRow]);
 
-    const res = await request(app).get('/api/classes/mine').set('x-user-id', '1');
+    const res = await request(app).get('/api/classes/mine').set(adminAuth);
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
@@ -79,7 +83,7 @@ describe('GET /api/classes/mine', () => {
     query.mockResolvedValueOnce([modUser]);
     query.mockResolvedValueOnce([{ ...classRow, id: 6 }, { ...classRow, id: 26 }]);
 
-    const res = await request(app).get('/api/classes/mine').set('x-user-id', '2');
+    const res = await request(app).get('/api/classes/mine').set(modAuth);
 
     expect(res.status).toBe(200);
     expect(res.body.map((c) => c.id)).toEqual([6, 26]);
@@ -92,7 +96,7 @@ describe('GET /api/classes/mine', () => {
   test('moderator without a teacher sees no classes', async () => {
     query.mockResolvedValueOnce([{ ...modUser, teacher_id: null }]);
 
-    const res = await request(app).get('/api/classes/mine').set('x-user-id', '2');
+    const res = await request(app).get('/api/classes/mine').set(modAuth);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
