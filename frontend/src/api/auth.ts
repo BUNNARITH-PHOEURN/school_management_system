@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { saveSession } from './session'
 
 export type Role = 'admin' | 'moderator' | 'teacher' | 'student'
 
@@ -27,8 +28,14 @@ export interface StudentRegistration {
   photo?: string
 }
 
+export interface AuthResponse {
+  user: SessionUser
+  token: string
+}
+
 export async function login(email: string, password: string): Promise<SessionUser> {
-  const { data } = await apiClient.post<{ user: SessionUser }>('/auth/login', { email, password })
+  const { data } = await apiClient.post<AuthResponse>('/auth/login', { email, password })
+  saveSession(data.user, data.token)
   return data.user
 }
 
@@ -48,12 +55,13 @@ export async function register(
     if (student.address) payload.address = student.address
     if (student.photo) payload.photo = student.photo
   }
-  const { data } = await apiClient.post<{ user: SessionUser }>('/auth/register', payload)
+  const { data } = await apiClient.post<AuthResponse>('/auth/register', payload)
+  saveSession(data.user, data.token)
   return data.user
 }
 
-export async function checkSession(userId: number): Promise<SessionUser> {
-  const { data } = await apiClient.get<{ user: SessionUser }>('/auth/me', { headers: { 'x-user-id': String(userId) } })
+export async function checkSession(_userId?: number): Promise<SessionUser> {
+  const { data } = await apiClient.get<{ user: SessionUser }>('/auth/me')
   return data.user
 }
 

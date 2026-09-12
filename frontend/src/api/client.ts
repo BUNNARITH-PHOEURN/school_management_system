@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { authHeaders } from './session'
+import { authHeaders, clearSession } from './session'
 
 export const apiClient = axios.create({
   baseURL: '/api',
@@ -19,6 +19,23 @@ apiClient.interceptors.request.use(config => {
   }
   return config
 })
+
+apiClient.interceptors.response.use(
+  response => response,
+  error => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      const url = error.config?.url ?? ''
+      const isAuthAttempt = url.includes('/auth/login') || url.includes('/auth/register')
+      if (!isAuthAttempt) {
+        clearSession()
+        if (typeof window !== 'undefined' && window.location.hash) {
+          window.location.reload()
+        }
+      }
+    }
+    return Promise.reject(error)
+  },
+)
 
 export function getApiError(error: unknown, fallback = 'Request failed') {
   if (axios.isAxiosError(error)) {
