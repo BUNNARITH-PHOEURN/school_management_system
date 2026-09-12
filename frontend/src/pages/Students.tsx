@@ -8,6 +8,7 @@ import Modal, { FormField, inputClass, inputStyle, ConfirmDialog } from '../comp
 import Pagination from '../components/Pagination'
 import { SkeletonTable, EmptyState } from '../components/Skeleton'
 import { useToast } from '../context/ToastContext'
+import { isValidPhone } from '../utils/validators'
 
 const PAGE_SIZE = 8
 
@@ -81,6 +82,10 @@ export default function Students() {
     setModalOpen(true)
   }
   const handleSave = async () => {
+    if (form.phone.trim() && !isValidPhone(form.phone)) {
+      toast('error', 'Please enter a valid phone number (e.g. +855 12 345 678).')
+      return
+    }
     setSaving(true)
     try {
       if (editing) {
