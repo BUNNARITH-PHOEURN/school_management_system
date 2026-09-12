@@ -143,6 +143,16 @@ describe('POST /api/auth/register', () => {
       'password must be at least 8 characters',
     ]);
   });
+
+  test('rejects a student registration with an invalid phone number', async () => {
+    query.mockResolvedValueOnce([]); // findByEmail
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'New User', email: 'new@school.edu', password: 'password1', gender: 'male', phone: 'not-a-phone' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toContain('phone must be a valid phone number');
+  });
 });
 
 describe('GET /api/auth/me', () => {

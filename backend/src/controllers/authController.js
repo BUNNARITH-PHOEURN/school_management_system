@@ -2,6 +2,7 @@ const userModel = require('../models/userModel');
 const studentModel = require('../models/studentModel');
 const { hashPassword, verifyPassword } = require('../utils/password');
 const { signToken } = require('../utils/token');
+const { isValidPhone } = require('../utils/validators');
 
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
@@ -34,7 +35,7 @@ function validateRegistration({ name, email, password }) {
   return errors;
 }
 
-function validateStudentRegistration({ department_id, gender, date_of_birth, photo }) {
+function validateStudentRegistration({ department_id, gender, date_of_birth, photo, phone }) {
   const errors = [];
   if (department_id != null && department_id !== '') {
     const n = Number.parseInt(department_id, 10);
@@ -50,6 +51,9 @@ function validateStudentRegistration({ department_id, gender, date_of_birth, pho
   if (photo != null && photo !== '' &&
     (typeof photo !== 'string' || !/^data:image\/(jpeg|png|gif);base64,/.test(photo) || photo.length > 4_000_000)) {
     errors.push('photo must be a valid JPG, PNG or GIF image smaller than 3 MB');
+  }
+  if (phone != null && phone !== '' && !isValidPhone(phone)) {
+    errors.push('phone must be a valid phone number');
   }
   return errors;
 }
@@ -129,6 +133,7 @@ exports.register = asyncHandler(async (req, res) => {
       name: name.trim(),
       email: normalizedEmail,
       passwordHash: hashPassword(password),
+      role: 'student',
     });
     await studentModel.ensureStudentForUser(user);
     const fresh = await userModel.findById(user.id);

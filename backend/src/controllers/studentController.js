@@ -1,5 +1,6 @@
 const studentModel = require('../models/studentModel');
 const { paginate, pageResponse } = require('../utils/pagination');
+const { isValidPhone } = require('../utils/validators');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -42,7 +43,10 @@ function validateStudent(body, { partial = false } = {}) {
 
   // optional fields — validated only when present
   if (has('code')) data.code = normalizeString(body.code);
-  if (has('phone')) data.phone = normalizeString(body.phone);
+  if (has('phone')) {
+    data.phone = normalizeString(body.phone);
+    if (data.phone && !isValidPhone(data.phone)) errors.push('phone must be a valid phone number');
+  }
   if (has('address')) data.address = normalizeString(body.address);
   if (has('department_id')) {
     if (body.department_id === null || body.department_id === '') {

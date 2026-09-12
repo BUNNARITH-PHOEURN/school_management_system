@@ -178,6 +178,16 @@ describe('POST /api/students', () => {
     expect(res.body.errors[0]).toMatch(/status must be one of/);
     expect(query).not.toHaveBeenCalled();
   });
+
+  test('returns 400 when phone is invalid', async () => {
+    const res = await request(app)
+      .post('/api/students')
+      .send({ ...validStudent, phone: 'abc-def' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toContain('phone must be a valid phone number');
+    expect(query).not.toHaveBeenCalled();
+  });
 });
 
 describe('PUT /api/students/:id', () => {
