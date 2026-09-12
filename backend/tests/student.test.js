@@ -159,6 +159,16 @@ describe('POST /api/students', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  test('returns 400 when the student is under 18', async () => {
+    const res = await request(app)
+      .post('/api/students')
+      .send({ ...validStudent, date_of_birth: '2020-01-01' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toContain('students must be at least 18 years old');
+    expect(query).not.toHaveBeenCalled();
+  });
+
   test('returns 400 when gender is not allowed', async () => {
     const res = await request(app)
       .post('/api/students')

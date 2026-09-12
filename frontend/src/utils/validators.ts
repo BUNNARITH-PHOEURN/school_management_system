@@ -10,3 +10,12 @@ export function isValidPhone(value: string): boolean {
   const digits = str.replace(/\D/g, '')
   return digits.length >= 7 && digits.length <= 15
 }
+
+// True when the date (YYYY-MM-DD) is at least 18 years in the past.
+export function isAtLeast18(dateOfBirth: string): boolean {
+  const dob = new Date(`${dateOfBirth}T00:00:00`)
+  if (Number.isNaN(dob.getTime())) return false
+  const cutoff = new Date()
+  cutoff.setFullYear(cutoff.getFullYear() - 18)
+  return dob <= cutoff
+}

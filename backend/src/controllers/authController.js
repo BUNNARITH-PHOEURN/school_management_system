@@ -2,7 +2,7 @@ const userModel = require('../models/userModel');
 const studentModel = require('../models/studentModel');
 const { hashPassword, verifyPassword } = require('../utils/password');
 const { signToken } = require('../utils/token');
-const { isValidPhone } = require('../utils/validators');
+const { isValidPhone, isAtLeast18 } = require('../utils/validators');
 
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
@@ -47,6 +47,8 @@ function validateStudentRegistration({ department_id, gender, date_of_birth, pho
   }
   if (date_of_birth != null && date_of_birth !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(date_of_birth)) {
     errors.push('date_of_birth must be in YYYY-MM-DD format');
+  } else if (date_of_birth != null && date_of_birth !== '' && !isAtLeast18(date_of_birth)) {
+    errors.push('students must be at least 18 years old');
   }
   if (photo != null && photo !== '' &&
     (typeof photo !== 'string' || !/^data:image\/(jpeg|png|gif);base64,/.test(photo) || photo.length > 4_000_000)) {

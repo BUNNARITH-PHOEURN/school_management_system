@@ -11,4 +11,14 @@ function isValidPhone(value) {
   return digits.length >= 7 && digits.length <= 15;
 }
 
-module.exports = { isValidPhone };
+// True when the date (YYYY-MM-DD) is at least 18 years in the past.
+function isAtLeast18(dateOfBirth) {
+  if (typeof dateOfBirth !== 'string') return false;
+  const dob = new Date(`${dateOfBirth}T00:00:00`);
+  if (Number.isNaN(dob.getTime())) return false;
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 18);
+  return dob <= cutoff;
+}
+
+module.exports = { isValidPhone, isAtLeast18 };

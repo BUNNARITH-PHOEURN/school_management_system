@@ -3,7 +3,7 @@ import { register, type SessionUser } from '../api/auth'
 import { listDepartments, type DepartmentRecord } from '../api/departments'
 import { getApiError } from '../api/client'
 import { getNextStudentCode } from '../api/student'
-import { isValidPhone } from '../utils/validators'
+import { isValidPhone, isAtLeast18 } from '../utils/validators'
 
 interface StudentRegisterProps {
   onSuccess: (user: SessionUser) => void
@@ -302,6 +302,7 @@ export default function StudentRegister({ onSuccess, onSignIn, onHome }: Student
     if (current === 1) {
       if (!form.dateOfBirth) e.dateOfBirth = 'Date of birth is required.'
       else if (form.dateOfBirth > new Date().toISOString().slice(0, 10)) e.dateOfBirth = 'Date of birth cannot be in the future.'
+      else if (!isAtLeast18(form.dateOfBirth)) e.dateOfBirth = 'You must be at least 18 years old.'
       if (!form.gender) e.gender = 'Please select a gender.'
       if (form.phone.trim() && !isValidPhone(form.phone)) e.phone = 'Enter a valid phone number (e.g. +855 12 345 678).'
       if (!form.address.trim()) e.address = 'Address is required.'

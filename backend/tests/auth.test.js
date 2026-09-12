@@ -153,6 +153,16 @@ describe('POST /api/auth/register', () => {
     expect(res.status).toBe(400);
     expect(res.body.errors).toContain('phone must be a valid phone number');
   });
+
+  test('rejects a student registration who is under 18', async () => {
+    query.mockResolvedValueOnce([]); // findByEmail
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'New User', email: 'young@school.edu', password: 'password1', gender: 'male', date_of_birth: '2020-01-01' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toContain('students must be at least 18 years old');
+  });
 });
 
 describe('GET /api/auth/me', () => {

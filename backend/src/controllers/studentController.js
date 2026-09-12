@@ -1,6 +1,6 @@
 const studentModel = require('../models/studentModel');
 const { paginate, pageResponse } = require('../utils/pagination');
-const { isValidPhone } = require('../utils/validators');
+const { isValidPhone, isAtLeast18 } = require('../utils/validators');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -60,6 +60,7 @@ function validateStudent(body, { partial = false } = {}) {
   if (has('date_of_birth')) {
     const v = normalizeDate(body.date_of_birth);
     if (v && !DATE_REGEX.test(v)) errors.push('date_of_birth must be in YYYY-MM-DD format');
+    else if (v && !isAtLeast18(v)) errors.push('students must be at least 18 years old');
     else data.date_of_birth = v;
   }
   if (has('enrolled_at')) {
